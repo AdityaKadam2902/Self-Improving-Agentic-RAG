@@ -1,0 +1,67 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg-base:        #f8fafb;
+  --bg-surface:     #ffffff;
+  --bg-elevated:    #f0f4f8;
+  --bg-hover:       #e8eef5;
+  --bg-card:        #ffffff;
+  --border:         #e1e8f0;
+  --border-bright:  #d0dae8;
+  --text-primary:   #1a202c;
+  --text-secondary: #57626f;
+  --text-muted:     #8892a0;
+  --text-inverse:   #ffffff;
+  --accent:         #2563eb;
+  --accent-dim:     #1e40af;
+  --accent-glow:    rgba(37,99,235,0.08);
+  --accent-glow2:   rgba(37,99,235,0.04);
+  --teal:    #0891b2;
+  --red:     #dc2626;
+  --green:   #16a34a;
+
+  /* Clean professional font stack */
+  --font-display: -apple-system, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  --font-body:    -apple-system, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  --font-mono:    'Monaco', 'Menlo', 'Courier New', monospace;
+
+  --radius-sm:   6px;
+  --radius-md:   12px;
+  --radius-lg:   18px;
+  --radius-xl:   24px;
+  --radius-pill: 999px;
+  --ease: cubic-bezier(0.16,1,0.3,1);
+  --sidebar-w:   260px;
+}
+
+html, body { height: 100%; overflow: hidden; }
+
+body {
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+#root { height: 100%; display: flex; overflow: hidden; }
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+@keyframes fadeUp    { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+@keyframes fadeIn    { from { opacity:0; } to { opacity:1; } }
+@keyframes pulse     { 0%,100% { opacity:1; } 50% { opacity:0.35; } }
+@keyframes spin      { to { transform:rotate(360deg); } }
+@keyframes typingBounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+  30%           { transform: translateY(-6px); opacity: 1; }
+}
+@keyframes cursorBlink {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0; }
+}

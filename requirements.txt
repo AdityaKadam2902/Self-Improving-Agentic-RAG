@@ -1,0 +1,73 @@
+# ============================================================
+#  Self-Improving Agentic RAG — Python 3.14 Compatible
+# ============================================================
+#
+#  Install with:
+#    pip install -r requirements.txt
+#
+#  Python 3.14 notes:
+#  - All version pins use >= so pip resolves the newest wheel
+#    that ships a cp314 or universal (py3) wheel.
+#  - chromadb: may need hnswlib built from source (see below).
+#  - ragas: optional — system auto-falls back to simple metrics.
+#  - PyMuPDF 1.25+ ships cp314 wheels.
+# ============================================================
+
+# ── Core web framework ────────────────────────────────────────
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+python-multipart>=0.0.12
+pydantic>=2.9.0
+pydantic-settings>=2.5.0
+python-dotenv>=1.0.1
+
+# ── LangChain / LangGraph ─────────────────────────────────────
+# Pure-Python — no binary wheels needed.
+langchain>=0.3.0
+langchain-community>=0.3.0
+langchain-groq>=0.2.0
+langgraph>=0.2.0
+langchain-text-splitters>=0.3.0
+
+# ── Embeddings & reranker ─────────────────────────────────────
+# sentence-transformers pulls PyTorch; 2.4+ has cp314 wheels.
+sentence-transformers>=3.1.0
+
+# ── Vector database ───────────────────────────────────────────
+# chromadb 0.5.20+ ships abi3 wheels (cp38-abi3) that work on 3.14.
+# If it still fails, see WORKAROUND section below.
+chromadb>=0.5.20
+
+# ── Document parsing ──────────────────────────────────────────
+PyMuPDF>=1.24.10          # 1.25+ has native cp314 wheels
+python-docx>=1.1.2
+tiktoken>=0.8.0
+
+# ── Keyword retrieval ─────────────────────────────────────────
+rank-bm25>=0.2.2          # pure Python, no issues
+
+# ── Evaluation (optional) ─────────────────────────────────────
+# Uncomment to enable full RAGAS evaluation metrics:
+# ragas>=0.2.0
+# datasets>=2.20.0
+
+# ── Observability & utilities ─────────────────────────────────
+loguru>=0.7.2             # pure Python
+httpx>=0.27.0             # pure Python
+aiofiles>=24.1.0          # pure Python
+numpy>=2.1.0              # numpy 2.1+ ships cp314 wheels
+
+# ============================================================
+#  IF chromadb FAILS — two options:
+#
+#  OPTION A: Build hnswlib from source (needs cmake + C++ compiler)
+#    macOS:   brew install cmake && pip install hnswlib --no-binary hnswlib
+#    Linux:   sudo apt install cmake build-essential && pip install hnswlib --no-binary hnswlib
+#    Windows: install VS Build Tools, then pip install hnswlib --no-binary hnswlib
+#    Then:    pip install chromadb
+#
+#  OPTION B: Use Qdrant in-memory (pure Python, zero C++ deps)
+#    pip install qdrant-client
+#    Set VECTOR_BACKEND=qdrant in your .env
+#    The embedding_generator.py has a qdrant fallback built in.
+# ============================================================
