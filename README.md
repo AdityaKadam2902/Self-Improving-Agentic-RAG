@@ -145,55 +145,34 @@ When users mark responses as incorrect, the system classifies the failure and up
 
 ```text
 self_improving_agentic_rag/
+├── .env                         # Local environment variables (not committed)
+├── .gitignore
+├── README.md
+├── requirements.txt
 ├── backend/
+│   ├── __init__.py
 │   ├── main.py
 │   ├── config.py
 │   ├── orchestrator.py
-│   ├── api/
-│   │   ├── upload.py
-│   │   └── chat.py
+│   ├── __pycache__/             # Generated locally, do not commit
 │   ├── agents/
-│   │   ├── query_understanding.py
-│   │   ├── query_rewriter.py
-│   │   ├── retriever.py
-│   │   ├── reranker.py
-│   │   ├── context_builder.py
-│   │   ├── answer_generator.py
-│   │   └── answer_verifier.py
-│   ├── ingestion/
-│   │   ├── document_loader.py
-│   │   ├── text_splitter.py
-│   │   └── embedding_generator.py
+│   ├── api/
 │   ├── improvement/
-│   │   ├── feedback_collector.py
-│   │   ├── failure_analyzer.py
-│   │   └── retrieval_optimizer.py
+│   ├── ingestion/
 │   └── memory/
-│       └── conversation_memory.py
 ├── frontend/
+│   ├── package.json
+│   ├── package-lock.json
+│   ├── node_modules/            # Generated locally, do not commit
 │   ├── public/
 │   └── src/
 ├── evaluation/
-├── vector_db/
-├── requirements.txt
-├── .env.example
-└── README.md
+│   ├── __init__.py
+│   └── rag_evaluator.py
+└── vector_db/                   # Persistent app data
 ```
 
----
-
-## API Endpoints
-
-| Method | Endpoint                | Description                    |
-| ------ | ----------------------- | ------------------------------ |
-| POST   | /api/upload             | Upload and index a document    |
-| GET    | /api/documents          | List indexed documents         |
-| DELETE | /api/documents/{source} | Remove a document              |
-| POST   | /api/chat               | Ask a question                 |
-| POST   | /api/feedback           | Record answer feedback         |
-| POST   | /api/improve            | Trigger self-improvement cycle |
-| DELETE | /api/session/{id}       | Clear session memory           |
-| GET    | /health                 | Health check                   |
+Generated folders such as `backend/__pycache__/`, `frontend/node_modules/`, and `.venv/` are intentionally left out of version control.
 
 ---
 
