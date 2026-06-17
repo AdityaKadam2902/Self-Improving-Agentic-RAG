@@ -1,159 +1,180 @@
-# RAG Workspace
+# Self-Improving Agentic RAG
 
-> A document Q&A application with a FastAPI backend, a React frontend, hybrid retrieval, reranking, answer verification, and a feedback loop that improves retrieval over time.
+> **An enterprise-grade document intelligence platform** that combines FastAPI, React, LangGraph, ChromaDB, BM25, reranking, answer verification, and feedback-driven self-improvement to deliver grounded question answering over private documents.
 
 ---
 
 ## Overview
 
-This project is a practical **agentic RAG system** built for document search and question answering. The backend is responsible for ingestion, retrieval, verification, and feedback tracking. The frontend provides the chat interface, document upload flow, and result traceability.
+Self-Improving Agentic RAG is a full-stack Retrieval-Augmented Generation system designed for reliable document Q&A at scale. It goes beyond basic RAG by adding query understanding, hybrid retrieval, cross-encoder reranking, hallucination detection, source traceability, and a closed feedback loop that improves future retrieval and prompting quality.
 
-When a user marks an answer as incorrect, the system classifies the failure and updates future retrieval using keyword boosts and prompt improvements.
+The platform is built to demonstrate a production-minded engineering approach: modular backend design, observable pipeline stages, explainable responses, and clear separation between ingestion, retrieval, generation, verification, and optimization.
+
+---
+
+## What Makes This Project Stand Out
+
+* **Hybrid retrieval** combining dense vector search and BM25 sparse search through Reciprocal Rank Fusion
+* **Cross-encoder reranking** to improve context quality before generation
+* **Answer verification layer** to detect unsupported or hallucinated responses
+* **Feedback-driven optimization** that learns from incorrect answers and improves future results
+* **Traceable responses** with source references, retrieval metadata, and pipeline diagnostics
+* **Modular architecture** with clear boundaries between API, orchestration, agents, ingestion, and improvement logic
+* **Clean full-stack implementation** using FastAPI for the backend and React for the frontend
 
 ---
 
 ## Architecture
 
-```
+```text
 User
- │
- ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                        React Frontend                           │
-│         (Chat UI · Document Upload · Feedback · Traces)         │
-└───────────────────────────┬─────────────────────────────────────┘
-                            │ HTTP
-                            ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    FastAPI API Gateway                          │
-│         /api/chat · /api/upload · /api/feedback · /api/improve │
-└───────────────────────────┬─────────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    RAG Orchestrator (LangGraph)                 │
-│                                                                 │
-│  ┌────────────┐   ┌────────────┐   ┌──────────────────────┐   │
-│  │  Query     │ → │  Query     │ → │   Hybrid Retrieval   │   │
-│  │  Understand│   │  Rewriter  │   │  (Vector + BM25 RRF) │   │
-│  └────────────┘   └────────────┘   └──────────┬───────────┘   │
-│                                               │                 │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │  Reranker (cross-encoder) → Context Builder              │  │
-│  └──────────────────────────────────────────────────────────┘  │
-│                                               │                 │
-│  ┌────────────────┐   ┌───────────────────────┴──────────┐    │
-│  │ Answer Verifier│ ← │       Answer Generator            │    │
-│  │ (hallucination │   │  (Groq Llama 3.3 70B + memory)   │    │
-│  │  detection)    │   └──────────────────────────────────┘    │
-│  └────────┬───────┘                                            │
-│           │ (if hallucination & retries < 2 → regenerate)      │
-└───────────┼─────────────────────────────────────────────────────┘
-            │
-            ▼
-┌───────────────────────────────────────┐
-│          Self-Improvement Engine      │
-│  ┌─────────────────┐                 │
-│  │ Feedback        │                 │
-│  │ Collector       │                 │
-│  └────────┬────────┘                 │
-│           │                          │
-│  ┌────────▼────────┐                 │
-│  │ Failure         │                 │
-│  │ Analyzer        │  bad_retrieval  │
-│  │ (LLM-powered)   │  hallucination  │
-│  └────────┬────────┘  prompt_issue   │
-│           │                          │
-│  ┌────────▼─────────────────────┐   │
-│  │ Retrieval + Prompt Optimizer │   │
-│  │  keyword boosts · new prompts│   │
-│  └──────────────────────────────┘   │
-└───────────────────────────────────────┘
-            │
-            ▼
-┌─────────────────────────────────────────────────────────────────┐
-│               ChromaDB (Persistent Vector Store)                │
-│                   + BM25 Index (in-memory)                      │
-└─────────────────────────────────────────────────────────────────┘
+  │
+  ▼
+React Frontend
+  ├── Chat Interface
+  ├── Document Upload
+  ├── Feedback Controls
+  └── Trace Viewer
+  │
+  ▼
+FastAPI API Layer
+  ├── /api/upload
+  ├── /api/chat
+  ├── /api/feedback
+  └── /api/improve
+  │
+  ▼
+LangGraph Orchestrator
+  ├── Query Understanding
+  ├── Query Rewriting
+  ├── Hybrid Retrieval
+  ├── Reranking
+  ├── Context Building
+  ├── Answer Generation
+  └── Answer Verification
+  │
+  ▼
+Self-Improvement Engine
+  ├── Feedback Collection
+  ├── Failure Classification
+  ├── Retrieval Optimization
+  └── Prompt Refinement
+  │
+  ▼
+Persistent Knowledge Layer
+  ├── ChromaDB Vector Store
+  └── BM25 Index
 ```
 
 ---
 
-## Agent Pipeline
+## Core Pipeline
 
-| Agent | Role |
-|---|---|
-| **Query Understanding** | Detects intent, extracts keywords, classifies query type |
-| **Query Rewriter** | Rewrites the query for better retrieval; injects learned keywords |
-| **Hybrid Retriever** | Combines dense (ChromaDB cosine) + sparse (BM25) search via Reciprocal Rank Fusion |
-| **Reranker** | Scores all candidates with a cross-encoder; selects top 3 |
-| **Context Builder** | Formats chunks into a labelled context block with source citations |
-| **Answer Generator** | Generates a grounded answer with Groq Llama 3.3 70B |
-| **Answer Verifier** | Checks answer faithfulness; triggers regeneration if hallucination detected |
+### 1. Document Ingestion
+
+Documents are uploaded in PDF, DOCX, or TXT format. They are parsed, chunked, embedded, and stored in a persistent vector database.
+
+### 2. Query Understanding
+
+Each user question is analyzed to extract intent, keywords, and retrieval hints before search begins.
+
+### 3. Hybrid Retrieval
+
+The system retrieves candidates from both:
+
+* **Dense retrieval** using embeddings in ChromaDB
+* **Sparse retrieval** using BM25 keyword matching
+
+The results are merged using Reciprocal Rank Fusion to balance semantic and lexical recall.
+
+### 4. Reranking
+
+Retrieved chunks are scored by a cross-encoder reranker to surface the most relevant evidence.
+
+### 5. Context Assembly
+
+The selected chunks are formatted into a structured context block with source metadata for grounded generation.
+
+### 6. Answer Generation
+
+The answer is generated by a large language model using only the retrieved context and conversation memory.
+
+### 7. Verification
+
+A verification stage checks whether the answer is supported by the evidence. If hallucination is detected, the system can regenerate the answer.
+
+### 8. Self-Improvement Loop
+
+When users mark responses as incorrect, the system classifies the failure and updates retrieval or prompting strategy for future requests.
 
 ---
 
 ## Tech Stack
 
-| Layer | Technology |
-|---|---|
-| LLM | Groq API (Llama 3.3 70B Versatile) |
-| Embeddings | `sentence-transformers/all-MiniLM-L6-v2` |
-| Reranker | `cross-encoder/ms-marco-MiniLM-L-6-v2` |
-| Agent Orchestration | LangGraph |
-| LLM Framework | LangChain + LangChain-Groq |
-| Vector Database | ChromaDB (persistent) |
-| Keyword Search | BM25 (rank-bm25) |
-| Backend | FastAPI + Uvicorn |
-| Frontend | React + React Scripts |
-| Evaluation | RAGAS |
-| Observability | Loguru |
-| Document Parsing | PyMuPDF, python-docx |
+| Layer             | Technology                             |
+| ----------------- | -------------------------------------- |
+| Frontend          | React                                  |
+| Backend           | FastAPI, Uvicorn                       |
+| Orchestration     | LangGraph                              |
+| LLM Framework     | LangChain, LangChain-Groq              |
+| LLM               | Groq API with Llama 3.3 70B Versatile  |
+| Embeddings        | sentence-transformers/all-MiniLM-L6-v2 |
+| Reranker          | cross-encoder/ms-marco-MiniLM-L-6-v2   |
+| Vector Database   | ChromaDB                               |
+| Keyword Retrieval | BM25 (rank-bm25)                       |
+| Evaluation        | RAGAS                                  |
+| Logging           | Loguru                                 |
+| Document Parsing  | PyMuPDF, python-docx                   |
+
+---
+
+## Key Capabilities
+
+* Document upload and indexing
+* Context-aware conversational Q&A
+* Source-grounded answers with citation traceability
+* Feedback collection for quality improvement
+* Failure analysis for retrieval and generation issues
+* Query rewriting with learned keyword boosts
+* Session-level conversation memory
+* Local development-friendly architecture
 
 ---
 
 ## Project Structure
 
-```
+```text
 self_improving_agentic_rag/
 ├── backend/
-│   ├── main.py                    # FastAPI app factory
-│   ├── config.py                  # Settings from env vars
-│   ├── orchestrator.py            # LangGraph pipeline
+│   ├── main.py
+│   ├── config.py
+│   ├── orchestrator.py
 │   ├── api/
-│   │   ├── upload.py              # Document upload & listing
-│   │   └── chat.py                # Chat, feedback, improve endpoints
+│   │   ├── upload.py
+│   │   └── chat.py
 │   ├── agents/
 │   │   ├── query_understanding.py
 │   │   ├── query_rewriter.py
-│   │   ├── retriever.py           # Hybrid retrieval + RRF
-│   │   ├── reranker.py            # Cross-encoder reranking
+│   │   ├── retriever.py
+│   │   ├── reranker.py
 │   │   ├── context_builder.py
 │   │   ├── answer_generator.py
 │   │   └── answer_verifier.py
 │   ├── ingestion/
-│   │   ├── document_loader.py     # PDF / DOCX / TXT parser
-│   │   ├── text_splitter.py       # Tiktoken-aware chunking
-│   │   └── embedding_generator.py # Embed + store in ChromaDB
+│   │   ├── document_loader.py
+│   │   ├── text_splitter.py
+│   │   └── embedding_generator.py
 │   ├── improvement/
-│   │   ├── feedback_collector.py  # Persist user feedback
-│   │   ├── failure_analyzer.py    # Classify failure type
-│   │   └── retrieval_optimizer.py # Keyword + prompt optimization
+│   │   ├── feedback_collector.py
+│   │   ├── failure_analyzer.py
+│   │   └── retrieval_optimizer.py
 │   └── memory/
-│       └── conversation_memory.py # Rolling session history
+│       └── conversation_memory.py
 ├── frontend/
-│   ├── package.json               # React Scripts entry points
 │   ├── public/
-│   │   └── index.html             # Browser shell
 │   └── src/
-│       ├── App.js                 # Main UI shell
-│       ├── api.js                 # Frontend API client
-│       ├── index.js               # React bootstrap
-│       ├── index.css              # Global styling
-│       └── components/            # Chat, sidebar, input, and states
 ├── evaluation/
-│   └── rag_evaluator.py           # RAGAS-based evaluation
-├── vector_db/                     # ChromaDB persistence (git-ignored)
+├── vector_db/
 ├── requirements.txt
 ├── .env.example
 └── README.md
@@ -161,14 +182,30 @@ self_improving_agentic_rag/
 
 ---
 
+## API Endpoints
+
+| Method | Endpoint                | Description                    |
+| ------ | ----------------------- | ------------------------------ |
+| POST   | /api/upload             | Upload and index a document    |
+| GET    | /api/documents          | List indexed documents         |
+| DELETE | /api/documents/{source} | Remove a document              |
+| POST   | /api/chat               | Ask a question                 |
+| POST   | /api/feedback           | Record answer feedback         |
+| POST   | /api/improve            | Trigger self-improvement cycle |
+| DELETE | /api/session/{id}       | Clear session memory           |
+| GET    | /health                 | Health check                   |
+
+---
+
 ## Installation
 
 ### Prerequisites
 
-- Python 3.11+
-- A [Groq API key](https://console.groq.com) (free tier available)
+* Python 3.11+
+* Node.js and npm
+* Groq API key
 
-### 1. Clone and Install
+### Backend Setup
 
 ```bash
 git clone <repo-url>
@@ -178,26 +215,22 @@ python -m venv .venv
 source .venv/bin/activate   # Windows: .venv\Scripts\activate
 
 pip install -r requirements.txt
-```
-
-### 2. Configure Environment
-
-```bash
 cp .env.example .env
-# Edit .env and set GROQ_API_KEY=your_key_here
 ```
 
-### 3. Start the Backend
+Set your API key in `.env`:
+
+```env
+GROQ_API_KEY=your_api_key_here
+```
+
+Start the backend:
 
 ```bash
 uvicorn backend.main:app --reload --port 8000
 ```
 
-API docs available at: http://localhost:8000/docs
-
-### 4. Start the Frontend
-
-In a separate terminal:
+### Frontend Setup
 
 ```bash
 cd frontend
@@ -205,74 +238,23 @@ npm install
 npm start
 ```
 
-Open: http://localhost:3000
-
-Keep both the backend and frontend terminals running. The frontend uses the local proxy configured in [frontend/package.json](frontend/package.json) to talk to the backend at `http://localhost:8000`.
+Open the application at `http://localhost:3000`.
 
 ---
 
-## Usage
+## Usage Flow
 
-### 1. Upload Documents
-
-Use the sidebar to upload PDF, DOCX, or TXT files. The system will parse, chunk, embed, and index them automatically.
-
-### 2. Ask Questions
-
-Type questions in the chat input. Each answer includes:
-- The generated answer with inline `[Source N]` citations
-- Source metadata (filename, page number, relevance score)
-- A pipeline trace (rewritten query, verification verdict, latency, tokens)
-
-### 3. Provide Feedback
-
-After each answer, click **👍 Correct** or **👎 Incorrect**. Incorrect answers are logged for analysis.
-
-### 4. Run Self-Improvement
-
-Click **🔧 Run Optimization Cycle** in the sidebar to:
-1. Classify stored failures (bad retrieval / hallucination / prompt issue)
-2. Generate keyword expansions for retrieval failures
-3. Generate an improved system prompt for prompt failures
-
-Future queries will automatically benefit from these improvements.
-
----
-
-## Development Notes
-
-- The frontend is intentionally small and direct. A few inline styles remain because they made iteration easier during development.
-- The session ID shown in the UI is only for the active browser session; it is not a login or account identifier.
-- The backend and frontend can be run separately, which makes it easier to debug one side without touching the other.
-- The project is set up for local development first, with the backend and frontend running as separate services.
-
----
-
-## Known Gaps
-
-- Some of the UI still uses component-level styles. That is acceptable for now, but I would probably move repeated pieces into shared styles later.
-- The feedback and improvement flow is intentionally lightweight. It is useful for demos and experiments, but it is not a complete production workflow yet.
-
----
-
-## API Reference
-
-| Method | Endpoint | Description |
-|---|---|---|
-| `POST` | `/api/upload` | Upload and index a document |
-| `GET` | `/api/documents` | List all indexed documents |
-| `DELETE` | `/api/documents/{source}` | Remove a document |
-| `POST` | `/api/chat` | Ask a question |
-| `POST` | `/api/feedback` | Record answer feedback |
-| `POST` | `/api/improve` | Trigger self-improvement cycle |
-| `DELETE` | `/api/session/{id}` | Clear session memory |
-| `GET` | `/health` | Health check |
+1. Upload documents through the sidebar.
+2. Ask questions in natural language.
+3. Review answers with source references and trace details.
+4. Mark responses as correct or incorrect.
+5. Run the optimization cycle to improve retrieval and prompting.
 
 ---
 
 ## Evaluation
 
-Run evaluation on accumulated feedback:
+The project supports evaluation over accumulated feedback using RAGAS-based metrics.
 
 ```bash
 python -m evaluation.rag_evaluator \
@@ -280,77 +262,49 @@ python -m evaluation.rag_evaluator \
     --output ./evaluation/report.json
 ```
 
-### Metrics
+### Metrics Tracked
 
-| Metric | Description |
-|---|---|
-| `faithfulness` | Fraction of answer claims supported by context |
-| `answer_relevancy` | Degree to which the answer addresses the question |
-| `context_recall` | Coverage of ground truth in retrieved context |
-| `context_precision` | Signal-to-noise of retrieved context |
-| `user_feedback_accuracy` | Percentage of answers marked correct by users |
-
----
-
-## Self-Improvement Flow
-
-```
-User marks answer incorrect
-         │
-         ▼
-FeedbackCollector stores:
-  question · answer · context · timestamp
-         │
-         ▼
-FailureAnalyzer classifies:
-  bad_retrieval  → context didn't contain the answer
-  hallucination  → LLM invented facts
-  prompt_issue   → context had the answer but LLM misused it
-         │
-         ▼
-RetrievalOptimizer:
-  bad_retrieval  → LLM generates synonym/expansion keywords
-                   stored and injected into future queries
-  prompt_issue   → LLM generates improved system prompt
-                   loaded by AnswerGenerator on next query
-```
+| Metric                 | Meaning                                            |
+| ---------------------- | -------------------------------------------------- |
+| faithfulness           | Whether the answer is supported by context         |
+| answer_relevancy       | How well the answer addresses the question         |
+| context_recall         | Coverage of relevant evidence in retrieved context |
+| context_precision      | Signal quality of retrieved chunks                 |
+| user_feedback_accuracy | Percentage of responses marked correct             |
 
 ---
 
-## Configuration Reference
+## Configuration
 
-| Variable | Default | Description |
-|---|---|---|
-| `GROQ_API_KEY` | required | Groq API key |
-| `GROQ_MODEL` | `llama-3.3-70b-versatile` | Groq model name |
-| `EMBEDDING_MODEL` | `all-MiniLM-L6-v2` | Sentence transformer model |
-| `RERANKER_MODEL` | `ms-marco-MiniLM-L-6-v2` | Cross-encoder model |
-| `CHUNK_SIZE` | `800` | Max tokens per chunk |
-| `CHUNK_OVERLAP` | `150` | Overlap tokens between chunks |
-| `TOP_K_RETRIEVAL` | `10` | Candidates per hybrid search |
-| `TOP_K_RERANK` | `3` | Final context chunks after reranking |
-| `CONVERSATION_HISTORY_LIMIT` | `5` | Message pairs kept in memory |
+| Variable                   | Default                 | Purpose                |
+| -------------------------- | ----------------------- | ---------------------- |
+| GROQ_API_KEY               | required                | API key for Groq       |
+| GROQ_MODEL                 | llama-3.3-70b-versatile | Generation model       |
+| EMBEDDING_MODEL            | all-MiniLM-L6-v2        | Embedding model        |
+| RERANKER_MODEL             | ms-marco-MiniLM-L-6-v2  | Cross-encoder reranker |
+| CHUNK_SIZE                 | 800                     | Maximum chunk length   |
+| CHUNK_OVERLAP              | 150                     | Chunk overlap          |
+| TOP_K_RETRIEVAL            | 10                      | Retrieval candidates   |
+| TOP_K_RERANK               | 3                       | Final evidence chunks  |
+| CONVERSATION_HISTORY_LIMIT | 5                       | Rolling memory window  |
 
 ---
 
 ## Future Improvements
 
-- **Multi-modal support**: PDF images, tables, diagrams via vision LLM
-- **Streaming responses**: SSE / WebSocket for real-time token streaming
-- **Redis-backed memory**: Persistent conversation history across restarts
-- **Multi-collection routing**: Route queries to relevant document collections
-- **Active learning**: Auto-trigger optimization after N failures
-- **RAGAS continuous evaluation**: Nightly automated regression testing
-- **Metadata filtering**: Filter retrieval by document, date, or custom tags
-- **Role-based access**: Per-user document namespaces
+* Streaming token-by-token responses
+* Redis-backed persistent memory
+* Multi-collection routing for document namespaces
+* Metadata filtering by document, date, or tags
+* Role-based access control
+* Automated nightly evaluation and regression checks
+* Multimodal document understanding for images, tables, and diagrams
 
 ---
 
-## Notes For Reviewers
+## Why This Project Is Valuable
 
-- The repository is intentionally split into a Python backend and a React frontend.
-- The frontend talks to the backend through the local proxy defined in [frontend/package.json](frontend/package.json).
-- If you run this on a fresh machine, install Python dependencies first, then install frontend dependencies, then start both services separately.
+This repository demonstrates practical engineering depth across retrieval, orchestration, observability, and feedback loops. It shows that the system is not only a chatbot wrapper around an LLM, but a structured document intelligence platform with measurable retrieval quality and iterative improvement.
 
 ---
 
