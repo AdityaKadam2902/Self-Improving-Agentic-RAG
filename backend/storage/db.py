@@ -87,6 +87,8 @@ def init_database_sync() -> None:
                     version_id TEXT PRIMARY KEY,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     system_prompt TEXT NOT NULL,
+                    parameters TEXT,
+                    eval_score REAL DEFAULT 0.0,
                     rrf_k_constant INTEGER NOT NULL DEFAULT 60,
                     rerank_threshold REAL NOT NULL DEFAULT 0.0,
                     faithfulness_score REAL,
@@ -94,6 +96,14 @@ def init_database_sync() -> None:
                     is_active INTEGER DEFAULT 0
                 );
             """)
+            try:
+                conn.execute("ALTER TABLE parameter_versions ADD COLUMN parameters TEXT;")
+            except Exception:
+                pass
+            try:
+                conn.execute("ALTER TABLE parameter_versions ADD COLUMN eval_score REAL DEFAULT 0.0;")
+            except Exception:
+                pass
 
             # 4. Security Incident Audit Log
             conn.execute("""
@@ -283,3 +293,66 @@ async def log_security_incident(
         action_taken,
         tenant_id,
     )
+
+
+# ---------------------------------------------------------------------------
+# Parameter Versioning & System Evolution
+# ---------------------------------------------------------------------------
+
+def _save_parameter_version_sync(
+    version_id: str,
+    parameters: Dict[str, Any],
+    eval_score: float,
+    is_active: bool = False,
+) -> None:
+    conn = _get_connection()
+    try:
+        with conn:
+            if is_active:
+                conn.execute("UPDATE parameter_versions SET is_active = 0;")
+            prompt = str(parameters.get("boosted_prompt") or "")
+            conn.execute("""
+                INSERT OR REPLACE INTO parameter_versions (
+                    version_id, system_prompt, parameters, eval_score, is_active
+                ) VALUES (?, ?, ?, ?, ?);
+            """, (
+                version_id,
+                prompt,
+                json.dumps(parameters, ensure_ascii=False),
+                eval_score,
+                1 if is_active else 0,
+            ))
+    finally:
+        conn.close()
+
+
+def save_parameter_version(
+    version_id: str,
+    parameters: Dict[str, Any],
+    eval_score: float,
+    is_active: bool = False,
+) -> None:
+    _save_parameter_version_sync(version_id, parameters, eval_score, is_active)
+
+
+def _get_active_parameter_version_sync() -> Optional[Dict[str, Any]]:
+    conn = _get_connection()
+    try:
+        row = conn.execute("""
+            SELECT * FROM parameter_versions WHERE is_active = 1
+            ORDER BY created_at DESC LIMIT 1;
+        """).fetchone()
+        if not row:
+            return None
+        d = dict(row)
+        try:
+            d["parameters"] = json.loads(d["parameters"])
+        except Exception:
+            pass
+        return d
+    finally:
+        conn.close()
+
+
+def get_active_parameter_version() -> Optional[Dict[str, Any]]:
+    return _get_active_parameter_version_sync()

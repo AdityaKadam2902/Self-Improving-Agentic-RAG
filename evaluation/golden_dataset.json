@@ -1,0 +1,352 @@
+[
+  {
+    "id": "fin_01",
+    "question": "What was Apollo Corporation's revenue in FY2025?",
+    "reference_context": "Apollo Corporation Annual Report 2025 states total consolidated revenue reached 1.2 billion USD, up 24% year-over-year.",
+    "ground_truth": "Apollo Corporation achieved total consolidated revenue of 1.2 billion USD in FY2025, representing a 24% year-over-year growth.",
+    "category": "financial"
+  },
+  {
+    "id": "fin_02",
+    "question": "What was the operating margin of Apollo in FY2025?",
+    "reference_context": "Apollo achieved operating income of 342 million USD, corresponding to an operating margin of 28.5%.",
+    "ground_truth": "Apollo recorded an operating margin of 28.5% with operating income of 342 million USD.",
+    "category": "financial"
+  },
+  {
+    "id": "fin_03",
+    "question": "How much cash flow from operations did Apollo generate?",
+    "reference_context": "Cash flow from operating activities totaled 410 million USD compared to 310 million in FY2024.",
+    "ground_truth": "Apollo generated 410 million USD in operating cash flow during FY2025.",
+    "category": "financial"
+  },
+  {
+    "id": "fin_04",
+    "question": "What was the Q4 gross margin percentage?",
+    "reference_context": "In Q4 FY2025, gross margin expanded by 180 basis points to reach 62.4%.",
+    "ground_truth": "Q4 FY2025 gross margin was 62.4%, up 180 basis points.",
+    "category": "financial"
+  },
+  {
+    "id": "fin_05",
+    "question": "What were the R&D capital expenditures for 2025?",
+    "reference_context": "Research and development expenditures were 185 million USD, accounting for 15.4% of total net sales.",
+    "ground_truth": "R&D expenditures in 2025 were 185 million USD (15.4% of net sales).",
+    "category": "financial"
+  },
+  {
+    "id": "fin_06",
+    "question": "What was the net debt at fiscal year end?",
+    "reference_context": "Total debt stood at 300 million USD offset by 450 million in cash, resulting in a net cash position of 150 million USD.",
+    "ground_truth": "Apollo had a net cash position of 150 million USD (300 million debt vs 450 million cash).",
+    "category": "financial"
+  },
+  {
+    "id": "fin_07",
+    "question": "What was the diluted earnings per share for 2025?",
+    "reference_context": "Diluted earnings per share reached 3.15 USD compared to 2.40 USD in the prior year.",
+    "ground_truth": "Diluted earnings per share for 2025 was 3.15 USD.",
+    "category": "financial"
+  },
+  {
+    "id": "fin_08",
+    "question": "What is the projected revenue growth for FY2026?",
+    "reference_context": "Management guidance projects FY2026 revenue between 1.40 billion and 1.45 billion USD, representing 17% to 21% growth.",
+    "ground_truth": "Projected FY2026 revenue is between 1.40B and 1.45B USD (17% to 21% growth).",
+    "category": "financial"
+  },
+  {
+    "id": "fin_09",
+    "question": "What was the effective corporate tax rate in 2025?",
+    "reference_context": "The effective tax rate for the twelve months ended December 31, 2025 was 18.2%.",
+    "ground_truth": "The effective tax rate in 2025 was 18.2%.",
+    "category": "financial"
+  },
+  {
+    "id": "fin_10",
+    "question": "How many shares were repurchased under the buyback authorization?",
+    "reference_context": "During 2025, the company repurchased 12.5 million common shares for a total consideration of 75 million USD.",
+    "ground_truth": "Apollo repurchased 12.5 million common shares for 75 million USD in 2025.",
+    "category": "financial"
+  },
+  {
+    "id": "arch_01",
+    "question": "What consensus protocol is used for vector replication?",
+    "reference_context": "Distributed vector replicas maintain consistency using the Raft consensus protocol with a 150ms heartbeat election timeout.",
+    "ground_truth": "The vector storage cluster uses the Raft consensus protocol with a 150ms heartbeat election timeout.",
+    "category": "architecture"
+  },
+  {
+    "id": "arch_02",
+    "question": "What is the target P95 latency for semantic cache hits?",
+    "reference_context": "In-memory semantic cache lookups evaluate cosine similarity in under 40 milliseconds for P95 queries.",
+    "ground_truth": "The target P95 latency for semantic cache hits is under 40 milliseconds.",
+    "category": "architecture"
+  },
+  {
+    "id": "arch_03",
+    "question": "How does the hybrid retriever combine dense and sparse scores?",
+    "reference_context": "The hybrid retriever merges dense vector similarity and sparse BM25 scores using Reciprocal Rank Fusion (RRF) with constant k=60.",
+    "ground_truth": "The hybrid retriever merges dense and sparse rankings using Reciprocal Rank Fusion with a k constant of 60.",
+    "category": "architecture"
+  },
+  {
+    "id": "arch_04",
+    "question": "What threadpool capacity is allocated for CPU-bound tasks?",
+    "reference_context": "A dedicated worker threadpool of 6 background workers handles PyTorch cross-encoders, BM25 indexing, and PyMuPDF layout parsing.",
+    "ground_truth": "A dedicated 6-worker threadpool offloads heavy CPU-bound tasks without blocking the FastAPI event loop.",
+    "category": "architecture"
+  },
+  {
+    "id": "arch_05",
+    "question": "What is the storage format for transactional sessions and feedback?",
+    "reference_context": "Session memory, audit logs, parameter versions, and feedback records are persisted in SQLite WAL (Write-Ahead Logging) mode.",
+    "ground_truth": "Storage is persisted in transactional SQLite database configured in WAL mode.",
+    "category": "architecture"
+  },
+  {
+    "id": "arch_06",
+    "question": "What embedding model is used for semantic query vectorization?",
+    "reference_context": "Embeddings are generated using sentence-transformers/all-MiniLM-L6-v2 producing 384-dimensional dense vectors.",
+    "ground_truth": "The default embedding model is sentence-transformers/all-MiniLM-L6-v2 (384 dimensions).",
+    "category": "architecture"
+  },
+  {
+    "id": "arch_07",
+    "question": "How does the adaptive router classify query complexity?",
+    "reference_context": "The adaptive router categorizes incoming requests into Tier 1 (Direct), Tier 2 (Single-Hop RAG), and Tier 3 (Multi-Hop Complex) using regex heuristics and token analysis.",
+    "ground_truth": "The adaptive router classifies queries into three tiers: Direct conversational, Single-hop RAG, and Multi-hop decomposition.",
+    "category": "architecture"
+  },
+  {
+    "id": "arch_08",
+    "question": "What is the cross-encoder reranker model used by default?",
+    "reference_context": "Top retrieval candidates are reranked using cross-encoder/ms-marco-MiniLM-L-6-v2.",
+    "ground_truth": "Candidates are reranked using cross-encoder/ms-marco-MiniLM-L-6-v2.",
+    "category": "architecture"
+  },
+  {
+    "id": "arch_09",
+    "question": "What is the eviction policy for the semantic query cache?",
+    "reference_context": "The semantic cache enforces LRU (Least Recently Used) eviction with a maximum capacity of 2,048 entries per tenant.",
+    "ground_truth": "The cache uses an LRU eviction policy with a maximum capacity of 2,048 entries per tenant.",
+    "category": "architecture"
+  },
+  {
+    "id": "arch_10",
+    "question": "How are Server-Sent Events (SSE) formatted during streaming?",
+    "reference_context": "The API streams tokens and telemetry using standard SSE format: event: <name> followed by data: <json>\\n\\n.",
+    "ground_truth": "Streaming responses use standard Server-Sent Events format with event: and data: fields.",
+    "category": "architecture"
+  },
+  {
+    "id": "sec_01",
+    "question": "How does the security shield detect indirect prompt injections?",
+    "reference_context": "The injection shield scans incoming text against adversarial regex signatures including delimiter breakouts, system override phrases, and role usurpations.",
+    "ground_truth": "The security shield scans for delimiter breakouts, system override phrases, and role usurpations using compiled regex patterns.",
+    "category": "security"
+  },
+  {
+    "id": "sec_02",
+    "question": "Which PII entities are automatically redacted by the scrubber?",
+    "reference_context": "The deterministic PII scrubber detects and masks Social Security Numbers, credit cards verified by Luhn algorithm, API keys, JWTs, and private keys.",
+    "ground_truth": "The scrubber redacts SSNs, credit cards (Luhn validated), API keys, JWT tokens, and private keys.",
+    "category": "security"
+  },
+  {
+    "id": "sec_03",
+    "question": "How is multi-tenant isolation enforced in vector queries?",
+    "reference_context": "Vector searches automatically prepend an immutable tenant_id metadata filter to ChromaDB and Qdrant queries.",
+    "ground_truth": "Multi-tenant isolation is enforced via immutable tenant_id metadata filters on all vector queries.",
+    "category": "security"
+  },
+  {
+    "id": "sec_04",
+    "question": "What is the maximum allowed document upload size?",
+    "reference_context": "Uploaded files are constrained to a maximum of 50 megabytes per document to prevent denial of service attacks.",
+    "ground_truth": "The maximum upload size is 50 megabytes per document.",
+    "category": "security"
+  },
+  {
+    "id": "sec_05",
+    "question": "How are delimiter breakout characters sanitized in context construction?",
+    "reference_context": "XML-like context delimiters such as <context>, </context>, and system prompts are escaped and enclosed in boundary clamps.",
+    "ground_truth": "Delimiters are neutralized by escaping angle brackets and wrapping context in strict boundary clamps.",
+    "category": "security"
+  },
+  {
+    "id": "sec_06",
+    "question": "What action is taken when an adversarial prompt injection is intercepted?",
+    "reference_context": "The prompt injection scanner logs a security audit event in SQLite, neutralizes the payload, and flags the session trace.",
+    "ground_truth": "Adversarial injections are logged in the SQLite audit log, sanitized, and flagged in the trace.",
+    "category": "security"
+  },
+  {
+    "id": "sec_07",
+    "question": "How are credit card numbers validated before redaction?",
+    "reference_context": "Candidate credit card numbers matching card length regexes are validated using the Luhn checksum algorithm to avoid false positive masking.",
+    "ground_truth": "Credit cards are validated with the Luhn checksum algorithm prior to redaction.",
+    "category": "security"
+  },
+  {
+    "id": "sec_08",
+    "question": "What CORS origins are permitted by default?",
+    "reference_context": "The API permits cross-origin requests from http://localhost:3000, http://127.0.0.1:3000, and http://localhost:8501.",
+    "ground_truth": "Default CORS origins include localhost:3000, 127.0.0.1:3000, and localhost:8501.",
+    "category": "security"
+  },
+  {
+    "id": "sec_09",
+    "question": "What happens when a tenant uploads a document with PII?",
+    "reference_context": "During document ingestion, all raw pages are scrubbed of PII entities before text splitting and embedding generation occur.",
+    "ground_truth": "All document pages are scrubbed of PII prior to chunking and vector storage.",
+    "category": "security"
+  },
+  {
+    "id": "sec_10",
+    "question": "How are session token budgets enforced against runaway recursion?",
+    "reference_context": "The BudgetController checks cumulative token usage and estimated USD cost, aborting requests exceeding 50,000 daily session tokens.",
+    "ground_truth": "The BudgetController enforces a 50,000 daily session token cap and cost ceilings.",
+    "category": "security"
+  },
+  {
+    "id": "ing_01",
+    "question": "How does the document loader handle financial tables in PDFs?",
+    "reference_context": "The layout-aware loader uses PyMuPDF table extraction to parse rows and columns and converts them into aligned Markdown tables.",
+    "ground_truth": "The loader uses PyMuPDF table extraction to format tabular rows into aligned Markdown tables.",
+    "category": "ingestion"
+  },
+  {
+    "id": "ing_02",
+    "question": "How are DOCX files parsed without python-docx installed?",
+    "reference_context": "The loader inspects word/document.xml inside the DOCX zip archive directly using xml.etree.ElementTree to extract paragraphs and tables.",
+    "ground_truth": "The loader parses word/document.xml from the zip archive using pure-Python xml.etree.ElementTree.",
+    "category": "ingestion"
+  },
+  {
+    "id": "ing_03",
+    "question": "What metadata is attached to contextual chunk breadcrumbs?",
+    "reference_context": "Chunks are prepended with [Document: source | Section: hierarchy | Context: summary] to preserve document grounding out of context.",
+    "ground_truth": "Chunks are enriched with document name, hierarchical section headers, and an extractive summary breadcrumb.",
+    "category": "ingestion"
+  },
+  {
+    "id": "ing_04",
+    "question": "What is the default chunk size and overlap for text splitting?",
+    "reference_context": "Text splitting defaults to a chunk_size of 800 tokens and a chunk_overlap of 150 tokens.",
+    "ground_truth": "The default chunk size is 800 tokens with 150 tokens overlap.",
+    "category": "ingestion"
+  },
+  {
+    "id": "ing_05",
+    "question": "Why was the BM25 index upgraded to a persistent inverted index?",
+    "reference_context": "The original implementation rebuilt the entire BM25 index across all corpus chunks on every query, causing extreme CPU spikes; the persistent index queries in <2ms.",
+    "ground_truth": "The persistent inverted index eliminated the multi-second full-corpus rebuilding bottleneck, achieving sub-2ms query speeds.",
+    "category": "ingestion"
+  },
+  {
+    "id": "ing_06",
+    "question": "How does the Corrective RAG (CRAG) quality gate handle irrelevant chunks?",
+    "reference_context": "Retrieved chunks scoring below the ambiguous threshold (<0.35) are categorized as INCORRECT and stripped to avoid context poisoning.",
+    "ground_truth": "Irrelevant chunks with confidence below 0.35 are classified as INCORRECT and discarded.",
+    "category": "ingestion"
+  },
+  {
+    "id": "ing_07",
+    "question": "What happens when an ambiguous chunk contains boilerplate disclaimers?",
+    "reference_context": "The CRAG noise sentence stripper scans sentence tokens and removes sentences with zero query keyword overlap.",
+    "ground_truth": "The noise sentence stripper removes sentences lacking query terms or numeric facts from ambiguous chunks.",
+    "category": "ingestion"
+  },
+  {
+    "id": "ing_08",
+    "question": "What file formats are supported by the layout-aware ingestion engine?",
+    "reference_context": "The engine supports PDF, DOCX, Markdown (.md), CSV, TSV, and plain text (.txt).",
+    "ground_truth": "Supported file formats include PDF, DOCX, Markdown, CSV, TSV, and TXT.",
+    "category": "ingestion"
+  },
+  {
+    "id": "ing_09",
+    "question": "How does CSV ingestion format structured data for embeddings?",
+    "reference_context": "The CSV parser reads column headers and rows and formats the dataset as a structured Markdown table.",
+    "ground_truth": "CSV files are parsed and converted into structured Markdown tables with column headers.",
+    "category": "ingestion"
+  },
+  {
+    "id": "ing_10",
+    "question": "How are document summaries generated during ingestion?",
+    "reference_context": "An extractive offline summarizer synthesizes opening thesis sentences and section headers without external LLM API calls.",
+    "ground_truth": "Summaries are extracted locally from opening sentences and headings with zero token expenditure.",
+    "category": "ingestion"
+  },
+  {
+    "id": "mh_01",
+    "question": "How does Apollo's revenue growth compare to its R&D expenditure growth?",
+    "reference_context": "Apollo's revenue grew by 24% while R&D expenditures grew by 18% to 185 million USD.",
+    "ground_truth": "Apollo's revenue growth (24%) outpaced its R&D expenditure growth (18%).",
+    "category": "multi_hop"
+  },
+  {
+    "id": "mh_02",
+    "question": "What is the relationship between the semantic cache and the budget controller?",
+    "reference_context": "Semantic cache hits serve responses in under 40ms at zero token cost, preserving the session budget tracked by the BudgetController.",
+    "ground_truth": "The semantic cache reduces token consumption to zero, preventing exhaustion of session budgets.",
+    "category": "multi_hop"
+  },
+  {
+    "id": "mh_03",
+    "question": "How do CRAG and NLI verification work together to prevent hallucinations?",
+    "reference_context": "CRAG strips irrelevant distractor chunks before synthesis, and NLI verification validates that all claims in the generated answer are strictly entailed by retained chunks.",
+    "ground_truth": "CRAG removes noisy context prior to generation, while NLI ensures every generated claim is entailed by evidence.",
+    "category": "multi_hop"
+  },
+  {
+    "id": "mh_04",
+    "question": "What happens during a query lifecycle if both direct routing and cache miss occur?",
+    "reference_context": "The query passes through query understanding, rewriting, hybrid retrieval, cross-encoder reranking, CRAG quality gate, context assembly, answer synthesis, and NLI verification.",
+    "ground_truth": "The pipeline executes: security -> routing -> understanding -> rewriting -> retrieval -> reranking -> CRAG -> context assembly -> synthesis -> NLI.",
+    "category": "multi_hop"
+  },
+  {
+    "id": "mh_05",
+    "question": "Why are citations mapped to token-spans rather than whole documents?",
+    "reference_context": "Token-span attribution links each atomic claim to the exact sentence and page in the source chunk, enabling verifiable auditability.",
+    "ground_truth": "Token-span citations attribute individual claims to exact sentences and pages rather than broad document references.",
+    "category": "multi_hop"
+  },
+  {
+    "id": "mh_06",
+    "question": "How does the system ensure zero-downtime rollback during parameter tuning?",
+    "reference_context": "The regression gate tests candidate parameters against the golden benchmark; if metrics regress, the active SQLite parameter version remains unchanged without process restart.",
+    "ground_truth": "The regression gate validates candidates on golden benchmarks and reverts to the active version in SQLite on regression.",
+    "category": "multi_hop"
+  },
+  {
+    "id": "mh_07",
+    "question": "How does tenant isolation extend across the cache and BM25 index?",
+    "reference_context": "The semantic cache scopes vector lookups by tenant_id, while the persistent BM25 index applies tenant metadata filters to candidate postings.",
+    "ground_truth": "Both the semantic cache and BM25 inverted index apply tenant_id filters to isolate data.",
+    "category": "multi_hop"
+  },
+  {
+    "id": "mh_08",
+    "question": "What is the difference between an AMBIGUOUS and INCORRECT chunk in CRAG?",
+    "reference_context": "AMBIGUOUS chunks contain partial or tangential relevance and are cleaned of noise sentences, whereas INCORRECT chunks are completely discarded as distractors.",
+    "ground_truth": "AMBIGUOUS chunks are stripped of noise and retained, while INCORRECT chunks are discarded.",
+    "category": "multi_hop"
+  },
+  {
+    "id": "mh_09",
+    "question": "How does the orchestrator handle an ungrounded hallucination verdict?",
+    "reference_context": "If NLI verification classifies an answer as hallucination, the orchestrator triggers regeneration up to twice before escalating or returning a refusal.",
+    "ground_truth": "The orchestrator attempts regeneration up to 2 times upon detecting a hallucination.",
+    "category": "multi_hop"
+  },
+  {
+    "id": "mh_10",
+    "question": "How does the feedback ledger inform unsupervised failure clustering?",
+    "reference_context": "Negative user ratings and NLI hallucination records in the SQLite feedback ledger are clustered into semantic themes to recommend system remediations.",
+    "ground_truth": "Negative feedback and hallucination records in SQLite are clustered to diagnose recurring failure themes.",
+    "category": "multi_hop"
+  }
+]
