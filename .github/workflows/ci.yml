@@ -1,0 +1,94 @@
+name: Continuous Integration & Verification Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test-and-benchmark:
+    name: Unit Tests & Golden Benchmark Harness
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Full 6-Suite System Regression Tests
+        run: |
+          python tests/unit/test_security_shield.py
+          python tests/unit/test_storage_db.py
+          python tests/unit/test_routing_and_cache.py
+          python tests/unit/test_ingestion_and_crag.py
+          python tests/unit/test_nli_verification.py
+          python tests/unit/test_evolution_engine.py
+
+      - name: Run Golden Benchmark Evaluation Harness
+        run: |
+          python -c "
+          from backend.evolution.eval_harness import get_benchmark_harness
+          harness = get_benchmark_harness()
+          result = harness.evaluate_dataset()
+          print(f'Benchmark Composite: {result.composite_score:.3f} across {result.total_samples} samples')
+          assert result.composite_score >= 0.80, f'Benchmark score failed quality gate: {result.composite_score}'
+          "
+
+  security-and-hygiene:
+    name: Code Hygiene & Zero-Emoji Rule Verification
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Verify Strict Zero-Emoji Rule in Code and Documentation
+        run: |
+          python -c "
+          import re, sys
+          from pathlib import Path
+          
+          emoji_pattern = re.compile(r'[\U00010000-\U0010ffff]')
+          violations = []
+          for ext in ['*.py', '*.js', '*.md', '*.css', '*.json']:
+              for p in Path('.').rglob(ext):
+                  if 'node_modules' in p.parts or '.git' in p.parts:
+                      continue
+                  try:
+                      content = p.read_text(encoding='utf-8')
+                      if emoji_pattern.search(content):
+                          violations.append(str(p))
+                  except Exception:
+                      pass
+          if violations:
+              print(f'FAIL: Emoji detected in files: {violations}')
+              sys.exit(1)
+          print('SUCCESS: Zero emojis verified across entire codebase.')
+          "
+
+  docker-lint:
+    name: Dockerfile & Compose Syntax Validation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Validate Dockerfile Exists and Has Multi-Stage Targets
+        run: |
+          test -f Dockerfile
+          grep -q "AS frontend-builder" Dockerfile
+          grep -q "AS runner" Dockerfile
+          test -f docker-compose.yml
+          echo "SUCCESS: Docker configuration validated."

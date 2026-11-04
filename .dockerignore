@@ -1,0 +1,11 @@
+node_modules
+__pycache__
+*.pyc
+*.pyo
+.git
+.gitignore
+.env
+.pytest_cache
+vector_db
+*.log
+.DS_Store

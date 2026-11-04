@@ -95,6 +95,16 @@ def create_app() -> FastAPI:
             },
         }
 
+    @app.get("/metrics", tags=["observability"])
+    async def metrics():
+        from backend.observability.telemetry import get_metrics_collector
+        from fastapi.responses import PlainTextResponse
+        collector = get_metrics_collector()
+        return PlainTextResponse(
+            collector.render_prometheus_metrics(),
+            media_type="text/plain; version=0.0.4; charset=utf-8",
+        )
+
     @app.get("/", tags=["system"])
     async def root():
         return {
