@@ -1,21 +1,28 @@
 """
-Document Upload API.
+Document Upload and Ingestion API.
 
-POST /api/upload  – Accept file, run ingestion pipeline, return status.
-GET  /api/documents – List indexed documents.
-DELETE /api/documents/{source} – Remove a document from the index.
+Provides endpoints for document ingestion, collection listing, and deletion.
+Includes pre-indexing adversarial injection sanitization and PII scrubbing.
 """
 
 from __future__ import annotations
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from typing import List, Optional
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from loguru import logger
 from pydantic import BaseModel
 
-from backend.ingestion.document_loader import load_document
-from backend.ingestion.text_splitter import split_documents
-from backend.ingestion.embedding_generator import embed_and_store, get_collection, get_all_documents, collection_count
 from backend.config import get_settings
+from backend.ingestion.document_loader import load_document
+from backend.ingestion.embedding_generator import (
+    embed_and_store,
+    get_all_documents,
+    get_collection,
+)
+from backend.ingestion.text_splitter import split_documents
+from backend.security.injection_shield import scan_for_injection
+from backend.security.pii_scrubber import scrub_pii
+from backend.utils.async_executor import run_in_threadpool
 
 router = APIRouter(prefix="/api", tags=["documents"])
 
@@ -27,6 +34,7 @@ class UploadResponse(BaseModel):
     filename: str
     chunks_indexed: int
     pages_parsed: int
+    security_flags: dict
     message: str
 
 
@@ -36,13 +44,14 @@ class DocumentInfo(BaseModel):
 
 
 @router.post("/upload", response_model=UploadResponse)
-async def upload_document(file: UploadFile = File(...)) -> UploadResponse:
+async def upload_document(
+    file: UploadFile = File(...),
+    tenant_id: str = Form("default"),
+) -> UploadResponse:
     """
-    Upload and index a document.
-
-    Accepts PDF, DOCX, and TXT files up to 50 MB.
+    Upload, sanitize, and index a document.
+    Enforces security scanning (indirect injection & PII scrubbing) and offloads embedding.
     """
-    # ── Validation ────────────────────────────────────────────────────────────
     suffix = "." + (file.filename or "").rsplit(".", 1)[-1].lower()
     if suffix not in ALLOWED_EXTENSIONS:
         raise HTTPException(
@@ -58,36 +67,63 @@ async def upload_document(file: UploadFile = File(...)) -> UploadResponse:
             detail=f"File too large ({size_mb:.1f} MB). Maximum allowed: {MAX_FILE_SIZE_MB} MB.",
         )
 
-    logger.info(f"[Upload] Processing '{file.filename}' ({size_mb:.2f} MB)")
+    logger.info(f"[Upload] Processing '{file.filename}' ({size_mb:.2f} MB) for tenant '{tenant_id}'")
 
-    # ── Ingestion pipeline ────────────────────────────────────────────────────
     try:
         settings = get_settings()
-        raw_docs = load_document(file_bytes, file.filename)
+
+        # 1. Parse raw document
+        raw_docs = await run_in_threadpool(load_document, file_bytes, file.filename)
+
+        # 2. Security scan & PII scrubbing per page/section
+        total_injections = 0
+        total_pii_redacted = 0
+        for doc in raw_docs:
+            inj_res = scan_for_injection(doc.content, tenant_id=tenant_id)
+            if inj_res.is_suspicious:
+                total_injections += 1
+            pii_res = scrub_pii(inj_res.sanitized_text)
+            total_pii_redacted += pii_res.redactions_count
+            doc.content = pii_res.redacted_text
+            doc.metadata["tenant_id"] = tenant_id
+
+        # 3. Split into chunks
         chunks = split_documents(
             raw_docs,
             chunk_size=settings.chunk_size,
             chunk_overlap=settings.chunk_overlap,
         )
-        embed_and_store(chunks)
+
+        for c in chunks:
+            c.metadata["tenant_id"] = tenant_id
+
+        # 4. Offload embedding generation and vector upsert to worker threadpool
+        await run_in_threadpool(embed_and_store, chunks)
+
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:
         logger.exception(f"[Upload] Ingestion failed for '{file.filename}'")
         raise HTTPException(status_code=500, detail=f"Ingestion failed: {exc}")
 
+    sec_summary = {
+        "adversarial_signatures_neutralized": total_injections,
+        "pii_entities_redacted": total_pii_redacted,
+    }
+
     return UploadResponse(
         filename=file.filename,
         chunks_indexed=len(chunks),
         pages_parsed=len(raw_docs),
+        security_flags=sec_summary,
         message=f"Successfully indexed {len(chunks)} chunks from {len(raw_docs)} pages.",
     )
 
 
-@router.get("/documents", response_model=list[DocumentInfo])
-async def list_documents() -> list[DocumentInfo]:
+@router.get("/documents", response_model=List[DocumentInfo])
+async def list_documents() -> List[DocumentInfo]:
     """Return all indexed document sources with their chunk counts."""
-    all_ids, all_docs, metadatas = get_all_documents()
+    all_ids, all_docs, metadatas = await run_in_threadpool(get_all_documents)
 
     counts: dict[str, int] = {}
     for meta in metadatas:
@@ -104,7 +140,6 @@ async def delete_document(source: str) -> dict:
     backend = os.environ.get("VECTOR_BACKEND", "chroma").lower()
 
     if backend == "qdrant":
-        # For qdrant in-memory, we can't easily delete by metadata — return info
         return {"message": "Delete by source not supported in qdrant in-memory mode.", "source": source}
 
     collection = get_collection()

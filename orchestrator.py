@@ -1,36 +1,38 @@
 """
-RAG pipeline orchestration.
+RAG Pipeline Orchestrator.
 
-Wires together all agents into a LangGraph state machine:
-
+Manages the LangGraph state machine:
+  security_shield
+       |
   understand_query
-       ↓
+       |
   rewrite_query
-       ↓
-  retrieve
-       ↓
-  rerank
-       ↓
+       |
+  retrieve (threadpool offloaded)
+       |
+  rerank (threadpool offloaded)
+       |
   build_context
-       ↓
+       |
   generate_answer
-       ↓
-  verify_answer ──→ (if hallucination & retries remain) ──→ generate_answer
-       ↓
+       |
+  verify_answer ---> (if hallucination & retries remain) ---> generate_answer
+       |
   done
 
-Each stage also writes to a trace dict so the UI can show what happened.
+Provides both synchronous (run_rag_pipeline) and asynchronous (run_rag_pipeline_async)
+entry points with full execution tracing and telemetry.
 """
 
 from __future__ import annotations
 
 import time
-from typing import Annotated, TypedDict
+from typing import Annotated, TypedDict, List, Dict, Any, Optional
 
 from langgraph.graph import END, StateGraph
 from loguru import logger
 
-from backend.agents.query_understanding import understand_query
+from backend.agents.query_understanding import understand_query, QueryUnderstanding
 from backend.agents.query_rewriter import rewrite_query
 from backend.agents.retriever import hybrid_retrieve, RetrievedChunk
 from backend.agents.reranker import rerank_chunks
@@ -38,43 +40,73 @@ from backend.agents.context_builder import build_context, BuiltContext
 from backend.agents.answer_generator import generate_answer
 from backend.agents.answer_verifier import verify_answer, VerificationResult
 from backend.improvement.retrieval_optimizer import get_boosted_keywords, get_optimized_prompt
+from backend.security.injection_shield import scan_for_injection
+from backend.security.pii_scrubber import scrub_pii
+from backend.security.tenant_manager import build_vector_tenant_filter
+from backend.utils.async_executor import run_in_threadpool
 
 
-# LangGraph state
+# LangGraph State Contract
 
 class RAGState(TypedDict):
     # Inputs
     query: str
+    sanitized_query: str
     session_id: str
-    conversation_history: list[dict]
+    tenant_id: str
+    conversation_history: List[dict]
 
-    # Intermediate
+    # Security & Routing Intermediate
+    security_flags: Dict[str, Any]
     rewritten_query: str
-    retrieved_chunks: list[RetrievedChunk]
-    reranked_chunks: list[RetrievedChunk]
-    context: BuiltContext
-    verification: VerificationResult
+    retrieved_chunks: List[RetrievedChunk]
+    reranked_chunks: List[RetrievedChunk]
+    context: Optional[BuiltContext]
+    verification: Optional[VerificationResult]
 
     # Outputs
     answer: str
-    citations: list[dict]
-    trace: dict          # Observability log
+    citations: List[dict]
+    trace: Dict[str, Any]
     token_count: int
     retry_count: int
     latency_ms: float
 
 
-# Node functions
+# Node Functions
+
+def _node_security(state: RAGState) -> RAGState:
+    t0 = time.perf_counter()
+    raw_query = state["query"]
+    tenant_id = state.get("tenant_id", "default")
+
+    # 1. Indirect Prompt Injection Scan
+    injection_res = scan_for_injection(raw_query, tenant_id=tenant_id)
+
+    # 2. PII Scrubbing
+    pii_res = scrub_pii(injection_res.sanitized_text)
+
+    state["sanitized_query"] = pii_res.redacted_text
+    state["security_flags"] = {
+        "is_suspicious": injection_res.is_suspicious,
+        "matched_injection_patterns": injection_res.matched_patterns,
+        "pii_redactions_count": pii_res.redactions_count,
+        "pii_categories": pii_res.categories_found,
+    }
+    state["trace"]["security"] = state["security_flags"]
+    state["trace"]["security_ms"] = round((time.perf_counter() - t0) * 1000, 1)
+    return state
+
 
 def _node_understand(state: RAGState) -> RAGState:
     t0 = time.perf_counter()
+    query_to_process = state.get("sanitized_query") or state["query"]
     understanding = understand_query(
-        query=state["query"],
+        query=query_to_process,
         conversation_history=state.get("conversation_history"),
     )
     state["trace"]["query_understanding"] = understanding.model_dump()
     state["trace"]["understand_ms"] = round((time.perf_counter() - t0) * 1000, 1)
-    # Keep the understanding object around for the rewrite step
     state["trace"]["_understanding"] = understanding
     return state
 
@@ -82,9 +114,10 @@ def _node_understand(state: RAGState) -> RAGState:
 def _node_rewrite(state: RAGState) -> RAGState:
     t0 = time.perf_counter()
     understanding = state["trace"].pop("_understanding")
-    boosted = get_boosted_keywords(state["query"])
+    effective_query = state.get("sanitized_query") or state["query"]
+    boosted = get_boosted_keywords(effective_query)
     rewritten = rewrite_query(
-        original_query=state["query"],
+        original_query=effective_query,
         understanding=understanding,
         conversation_history=state.get("conversation_history"),
         boosted_keywords=boosted if boosted else None,
@@ -98,7 +131,9 @@ def _node_rewrite(state: RAGState) -> RAGState:
 
 def _node_retrieve(state: RAGState) -> RAGState:
     t0 = time.perf_counter()
-    chunks = hybrid_retrieve(state["rewritten_query"])
+    tenant_id = state.get("tenant_id", "default")
+    tenant_filter = build_vector_tenant_filter(tenant_id=tenant_id)
+    chunks = hybrid_retrieve(state["rewritten_query"], tenant_filter=tenant_filter)
     state["retrieved_chunks"] = chunks
     state["trace"]["retrieved_chunks"] = [
         {"chunk_id": c.chunk_id, "source": c.metadata.get("source"), "rrf_score": c.rrf_score}
@@ -131,8 +166,9 @@ def _node_build_context(state: RAGState) -> RAGState:
 def _node_generate(state: RAGState) -> RAGState:
     t0 = time.perf_counter()
     custom_prompt = get_optimized_prompt()
+    effective_query = state.get("sanitized_query") or state["query"]
     answer, tokens = generate_answer(
-        query=state["query"],
+        query=effective_query,
         context=state["context"],
         conversation_history=state.get("conversation_history"),
         custom_system_prompt=custom_prompt,
@@ -147,8 +183,9 @@ def _node_generate(state: RAGState) -> RAGState:
 
 def _node_verify(state: RAGState) -> dict:
     t0 = time.perf_counter()
+    effective_query = state.get("sanitized_query") or state["query"]
     result = verify_answer(
-        query=state["query"],
+        query=effective_query,
         answer=state["answer"],
         context=state["context"],
     )
@@ -168,18 +205,19 @@ def _node_verify(state: RAGState) -> dict:
 
 
 def _should_regenerate(state: RAGState) -> str:
-    verdict = state["verification"].verdict
+    verdict = state["verification"].verdict if state.get("verification") else "grounded"
     retries = state.get("retry_count", 0)
     if verdict == "hallucination" and retries < 2:
         return "regenerate"
     return "done"
 
 
-# Build graph
+# Graph Compilation
 
 def _build_graph() -> StateGraph:
     graph = StateGraph(RAGState)
 
+    graph.add_node("security", _node_security)
     graph.add_node("understand", _node_understand)
     graph.add_node("rewrite", _node_rewrite)
     graph.add_node("retrieve", _node_retrieve)
@@ -188,7 +226,8 @@ def _build_graph() -> StateGraph:
     graph.add_node("generate", _node_generate)
     graph.add_node("verify", _node_verify)
 
-    graph.set_entry_point("understand")
+    graph.set_entry_point("security")
+    graph.add_edge("security", "understand")
     graph.add_edge("understand", "rewrite")
     graph.add_edge("rewrite", "retrieve")
     graph.add_edge("retrieve", "rerank")
@@ -207,39 +246,34 @@ def _build_graph() -> StateGraph:
 _rag_graph = _build_graph()
 
 
-# Public entry point
+# Public APIs
 
 def run_rag_pipeline(
     query: str,
     session_id: str,
-    conversation_history: list[dict] | None = None,
+    conversation_history: Optional[List[dict]] = None,
+    tenant_id: str = "default",
 ) -> dict:
     """
-    Run the full RAG pipeline for a user query.
-
-    Args:
-        query:                User's question.
-        session_id:           Conversation session ID.
-        conversation_history: Recent chat turns from ConversationMemory.
-
-    Returns:
-        Dict with keys: answer, citations, trace, token_count, latency_ms,
-        rewritten_query, verification.
+    Run the full RAG pipeline for a user query synchronously.
     """
     wall_start = time.perf_counter()
 
     initial_state: RAGState = {
         "query": query,
+        "sanitized_query": query,
         "session_id": session_id,
+        "tenant_id": tenant_id,
         "conversation_history": conversation_history or [],
+        "security_flags": {},
         "rewritten_query": query,
         "retrieved_chunks": [],
         "reranked_chunks": [],
-        "context": None,  # type: ignore
-        "verification": None,  # type: ignore
+        "context": None,
+        "verification": None,
         "answer": "",
         "citations": [],
-        "trace": {"query": query, "session_id": session_id},
+        "trace": {"query": query, "session_id": session_id, "tenant_id": tenant_id},
         "token_count": 0,
         "retry_count": 0,
         "latency_ms": 0.0,
@@ -260,7 +294,7 @@ def run_rag_pipeline(
     final_state["trace"]["total_latency_ms"] = latency
 
     logger.info(
-        f"[Orchestrator] Done | session={session_id} | latency={latency}ms | "
+        f"[Orchestrator] Completed | session={session_id} | latency={latency}ms | "
         f"tokens={final_state.get('token_count', 0)}"
     )
 
@@ -272,4 +306,23 @@ def run_rag_pipeline(
         "trace": final_state.get("trace", {}),
         "token_count": final_state.get("token_count", 0),
         "latency_ms": latency,
+        "security_flags": final_state.get("security_flags", {}),
     }
+
+
+async def run_rag_pipeline_async(
+    query: str,
+    session_id: str,
+    conversation_history: Optional[List[dict]] = None,
+    tenant_id: str = "default",
+) -> dict:
+    """
+    Asynchronous non-blocking wrapper running the pipeline inside the worker threadpool.
+    """
+    return await run_in_threadpool(
+        run_rag_pipeline,
+        query=query,
+        session_id=session_id,
+        conversation_history=conversation_history,
+        tenant_id=tenant_id,
+    )

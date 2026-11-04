@@ -3,6 +3,7 @@ Reranker Agent.
 
 Uses a cross-encoder model (ms-marco-MiniLM) to score each retrieved
 chunk against the query and select the top-k most relevant ones.
+Supports non-blocking async execution.
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ from sentence_transformers import CrossEncoder
 
 from backend.agents.retriever import RetrievedChunk
 from backend.config import get_settings
+from backend.utils.async_executor import run_in_threadpool
 
 
 @lru_cache(maxsize=1)
@@ -30,7 +32,7 @@ def rerank_chunks(
     top_k: Optional[int] = None,
 ) -> list[RetrievedChunk]:
     """
-    Score and rerank retrieved chunks with a cross-encoder.
+    Score and rerank retrieved chunks with a cross-encoder synchronously.
 
     Args:
         query:  The (rewritten) query string.
@@ -57,12 +59,23 @@ def rerank_chunks(
         return chunks[:top_k]
 
     for chunk, score in zip(chunks, scores):
-        chunk.vector_score = float(score)  # repurpose vector_score field for cross-enc score
+        chunk.vector_score = float(score)  # store cross-encoder score
 
     ranked = sorted(chunks, key=lambda c: c.vector_score, reverse=True)[:top_k]
 
     logger.info(
-        f"[Reranker] {len(chunks)} → {len(ranked)} chunks. "
+        f"[Reranker] {len(chunks)} -> {len(ranked)} chunks. "
         f"Top score: {ranked[0].vector_score:.4f}"
     )
     return ranked
+
+
+async def async_rerank_chunks(
+    query: str,
+    chunks: list[RetrievedChunk],
+    top_k: Optional[int] = None,
+) -> list[RetrievedChunk]:
+    """
+    Asynchronously score and rerank chunks in the worker threadpool.
+    """
+    return await run_in_threadpool(rerank_chunks, query, chunks, top_k)
