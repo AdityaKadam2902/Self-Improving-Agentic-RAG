@@ -2,7 +2,8 @@
 Chat API - Streaming and Feedback Endpoints.
 
 Supports Server-Sent Events (SSE) streaming with non-blocking async execution,
-inline security scanning (indirect injection & PII scrubbing), and transactional SQLite storage.
+inline security scanning (indirect injection & PII scrubbing), in-memory semantic caching,
+budget enforcement, and transactional SQLite storage.
 """
 
 from __future__ import annotations
@@ -30,10 +31,15 @@ from backend.improvement.retrieval_optimizer import (
     get_optimized_prompt,
     run_optimization,
 )
+from backend.ingestion.embedding_generator import embed_query
 from backend.memory.conversation_memory import clear_memory, get_memory
+from backend.routing.adaptive_router import classify_query_route
+from backend.routing.budget_controller import get_budget_controller
+from backend.routing.semantic_cache import get_semantic_cache
 from backend.security.injection_shield import scan_for_injection
 from backend.security.pii_scrubber import scrub_pii
 from backend.security.tenant_manager import build_vector_tenant_filter
+from backend.utils.async_executor import run_in_threadpool
 
 router = APIRouter(prefix="/api", tags=["chat"])
 
@@ -66,6 +72,7 @@ class FeedbackResponse(BaseModel):
 async def _stream_rag(question: str, session_id: str, tenant_id: str = "default"):
     """
     Asynchronous non-blocking generator streaming RAG pipeline tokens via Server-Sent Events (SSE).
+    Enforces semantic caching, budget limits, and security guardrails.
     """
     wall_start = time.perf_counter()
     memory = get_memory(session_id)
@@ -75,7 +82,14 @@ async def _stream_rag(question: str, session_id: str, tenant_id: str = "default"
         return f"event: {event}\ndata: {json.dumps(data)}\n\n"
 
     try:
-        # 0. Zero-Trust Security Shield (Injection & PII)
+        # 0. Check Session Token Allowance
+        budget_ctrl = get_budget_controller()
+        budget_check = budget_ctrl.check_allowance(session_id, estimated_tokens=500)
+        if not budget_check.allowed:
+            yield sse("error", {"message": budget_check.reason})
+            return
+
+        # 1. Zero-Trust Security Shield (Injection & PII)
         yield sse("status", {"stage": "Scanning security parameters..."})
         injection_res = scan_for_injection(question, tenant_id=tenant_id)
         pii_res = scrub_pii(injection_res.sanitized_text)
@@ -84,11 +98,41 @@ async def _stream_rag(question: str, session_id: str, tenant_id: str = "default"
         if injection_res.is_suspicious:
             logger.warning(f"[Chat Stream] Query flagged for security check: {injection_res.matched_patterns}")
 
-        # 1. Query Understanding
+        # 2. Semantic Cache Lookup (<40ms, zero LLM cost)
+        cache = get_semantic_cache()
+        query_emb = None
+        try:
+            query_emb = await run_in_threadpool(embed_query, effective_query)
+            cached_entry = cache.lookup(query_emb, tenant_id=tenant_id)
+            if cached_entry:
+                yield sse("status", {"stage": "Serving from verified semantic cache..."})
+                yield sse("token", {"text": cached_entry.answer})
+                total_latency = round((time.perf_counter() - wall_start) * 1000, 1)
+                yield sse("done", {
+                    "answer": cached_entry.answer,
+                    "citations": cached_entry.citations,
+                    "rewritten_query": cached_entry.query_text,
+                    "verification_verdict": cached_entry.verification_verdict,
+                    "latency_ms": total_latency,
+                    "cache_hit": True,
+                    "cost_usd": 0.0,
+                    "security_flags": {
+                        "is_suspicious": injection_res.is_suspicious,
+                        "pii_redactions": pii_res.redactions_count,
+                    },
+                })
+                return
+        except Exception as exc:
+            logger.debug(f"[Chat Stream] Semantic cache lookup bypassed: {exc}")
+
+        # 3. Adaptive Intent & Complexity Routing
+        yield sse("status", {"stage": "Classifying execution route..."})
+        route_decision = classify_query_route(effective_query, conversation_history=history)
+
+        # 4. Query Understanding & Rewriting
         yield sse("status", {"stage": "Analyzing query intent..."})
         understanding = understand_query(query=effective_query, conversation_history=history)
 
-        # 2. Query Rewriting
         yield sse("status", {"stage": "Optimizing search query..."})
         boosted = get_boosted_keywords(effective_query)
         rewritten = rewrite_query(
@@ -98,19 +142,19 @@ async def _stream_rag(question: str, session_id: str, tenant_id: str = "default"
             boosted_keywords=boosted if boosted else None,
         )
 
-        # 3. Asynchronous Hybrid Retrieval (Threadpool offloaded)
+        # 5. Asynchronous Hybrid Retrieval (Threadpool offloaded)
         yield sse("status", {"stage": "Executing hybrid retrieval..."})
         tenant_filter = build_vector_tenant_filter(tenant_id=tenant_id)
         chunks = await async_hybrid_retrieve(rewritten, tenant_filter=tenant_filter)
 
-        # 4. Asynchronous Cross-Encoder Reranking
+        # 6. Asynchronous Cross-Encoder Reranking
         yield sse("status", {"stage": "Cross-encoder reranking..."})
         reranked = await async_rerank_chunks(rewritten, chunks)
 
-        # 5. Structured Context Assembly
+        # 7. Structured Context Assembly
         context = build_context(reranked)
 
-        # 6. Progressive Answer Streaming
+        # 8. Progressive Answer Streaming
         yield sse("status", {"stage": "Synthesizing answer..."})
         custom_prompt = get_optimized_prompt()
         full_answer = ""
@@ -123,7 +167,7 @@ async def _stream_rag(question: str, session_id: str, tenant_id: str = "default"
             full_answer += token
             yield sse("token", {"text": token})
 
-        # 7. Verification
+        # 9. Verification
         yield sse("status", {"stage": "Verifying grounding & citations..."})
         verification = verify_answer(query=effective_query, answer=full_answer, context=context)
 
@@ -133,6 +177,29 @@ async def _stream_rag(question: str, session_id: str, tenant_id: str = "default"
 
         total_latency = round((time.perf_counter() - wall_start) * 1000, 1)
 
+        # Estimate Token Counts and Record Budget Cost
+        estimated_tokens = int(len(full_answer.split()) * 1.33) + int(len(context.context_text.split()) * 1.33)
+        prompt_tokens = int(estimated_tokens * 0.75)
+        completion_tokens = int(estimated_tokens * 0.25)
+        telemetry = budget_ctrl.record_query_usage(
+            session_id=session_id,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            latency_ms=total_latency,
+        )
+
+        # Store in Semantic Cache if Grounded
+        if verification.verdict == "grounded" and query_emb and full_answer:
+            cache.store(
+                query_text=effective_query,
+                query_embedding=query_emb,
+                answer=full_answer,
+                citations=context.citations,
+                grounding_score=1.0,
+                verification_verdict=verification.verdict,
+                tenant_id=tenant_id,
+            )
+
         # Deliver final metadata event
         yield sse("done", {
             "answer": full_answer,
@@ -140,6 +207,9 @@ async def _stream_rag(question: str, session_id: str, tenant_id: str = "default"
             "rewritten_query": rewritten,
             "verification_verdict": verification.verdict,
             "latency_ms": total_latency,
+            "cache_hit": False,
+            "cost_usd": telemetry.estimated_cost_usd,
+            "route": route_decision.route,
             "security_flags": {
                 "is_suspicious": injection_res.is_suspicious,
                 "pii_redactions": pii_res.redactions_count,

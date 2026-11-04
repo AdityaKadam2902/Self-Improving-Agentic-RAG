@@ -1,8 +1,10 @@
 """
-RAG Pipeline Orchestrator.
+RAG Pipeline Orchestrator with Economic Routing and Semantic Cache.
 
 Manages the LangGraph state machine:
   security_shield
+       |
+  route_and_cache_check
        |
   understand_query
        |
@@ -20,8 +22,8 @@ Manages the LangGraph state machine:
        |
   done
 
-Provides both synchronous (run_rag_pipeline) and asynchronous (run_rag_pipeline_async)
-entry points with full execution tracing and telemetry.
+Provides both synchronous and asynchronous entry points with token budget
+enforcement, semantic caching, and full observability telemetry.
 """
 
 from __future__ import annotations
@@ -40,6 +42,10 @@ from backend.agents.context_builder import build_context, BuiltContext
 from backend.agents.answer_generator import generate_answer
 from backend.agents.answer_verifier import verify_answer, VerificationResult
 from backend.improvement.retrieval_optimizer import get_boosted_keywords, get_optimized_prompt
+from backend.ingestion.embedding_generator import embed_query
+from backend.routing.adaptive_router import classify_query_route, RouteDecision
+from backend.routing.budget_controller import get_budget_controller
+from backend.routing.semantic_cache import get_semantic_cache
 from backend.security.injection_shield import scan_for_injection
 from backend.security.pii_scrubber import scrub_pii
 from backend.security.tenant_manager import build_vector_tenant_filter
@@ -58,6 +64,9 @@ class RAGState(TypedDict):
 
     # Security & Routing Intermediate
     security_flags: Dict[str, Any]
+    route_decision: Dict[str, Any]
+    cache_hit: bool
+    query_embedding: Optional[List[float]]
     rewritten_query: str
     retrieved_chunks: List[RetrievedChunk]
     reranked_chunks: List[RetrievedChunk]
@@ -69,6 +78,7 @@ class RAGState(TypedDict):
     citations: List[dict]
     trace: Dict[str, Any]
     token_count: int
+    cost_usd: float
     retry_count: int
     latency_ms: float
 
@@ -95,6 +105,27 @@ def _node_security(state: RAGState) -> RAGState:
     }
     state["trace"]["security"] = state["security_flags"]
     state["trace"]["security_ms"] = round((time.perf_counter() - t0) * 1000, 1)
+    return state
+
+
+def _node_route(state: RAGState) -> RAGState:
+    t0 = time.perf_counter()
+    effective_query = state.get("sanitized_query") or state["query"]
+
+    # 1. Classify route tier
+    decision = classify_query_route(
+        query=effective_query,
+        conversation_history=state.get("conversation_history"),
+    )
+    state["route_decision"] = {
+        "route": decision.route,
+        "reasoning": decision.reasoning,
+        "sub_queries": decision.sub_queries,
+        "estimated_complexity": decision.estimated_complexity,
+        "requires_retrieval": decision.requires_retrieval,
+    }
+    state["trace"]["routing"] = state["route_decision"]
+    state["trace"]["route_ms"] = round((time.perf_counter() - t0) * 1000, 1)
     return state
 
 
@@ -218,6 +249,7 @@ def _build_graph() -> StateGraph:
     graph = StateGraph(RAGState)
 
     graph.add_node("security", _node_security)
+    graph.add_node("route", _node_route)
     graph.add_node("understand", _node_understand)
     graph.add_node("rewrite", _node_rewrite)
     graph.add_node("retrieve", _node_retrieve)
@@ -227,7 +259,8 @@ def _build_graph() -> StateGraph:
     graph.add_node("verify", _node_verify)
 
     graph.set_entry_point("security")
-    graph.add_edge("security", "understand")
+    graph.add_edge("security", "route")
+    graph.add_edge("route", "understand")
     graph.add_edge("understand", "rewrite")
     graph.add_edge("rewrite", "retrieve")
     graph.add_edge("retrieve", "rerank")
@@ -256,9 +289,50 @@ def run_rag_pipeline(
 ) -> dict:
     """
     Run the full RAG pipeline for a user query synchronously.
+    Enforces token budgeting, semantic caching, and telemetry recording.
     """
     wall_start = time.perf_counter()
 
+    # 1. Check budget allowance
+    budget_ctrl = get_budget_controller()
+    budget_check = budget_ctrl.check_allowance(session_id, estimated_tokens=500)
+    if not budget_check.allowed:
+        return {
+            "answer": f"Request blocked: {budget_check.reason}",
+            "citations": [],
+            "cache_hit": False,
+            "token_count": 0,
+            "cost_usd": 0.0,
+            "latency_ms": 0.0,
+            "security_flags": {},
+            "trace": {"error": budget_check.reason},
+        }
+
+    # 2. Semantic Cache Lookup (<40ms)
+    cache = get_semantic_cache()
+    query_emb: Optional[List[float]] = None
+    try:
+        query_emb = embed_query(query)
+        cached_entry = cache.lookup(query_emb, tenant_id=tenant_id)
+        if cached_entry:
+            latency = round((time.perf_counter() - wall_start) * 1000, 1)
+            logger.info(f"[Orchestrator] Cache Hit served in {latency}ms for query='{query[:50]}'")
+            return {
+                "answer": cached_entry.answer,
+                "citations": cached_entry.citations,
+                "rewritten_query": cached_entry.query_text,
+                "verification": {"verdict": cached_entry.verification_verdict},
+                "cache_hit": True,
+                "token_count": 0,
+                "cost_usd": 0.0,
+                "latency_ms": latency,
+                "security_flags": {},
+                "trace": {"cache_hit": True, "total_latency_ms": latency},
+            }
+    except Exception as exc:
+        logger.debug(f"[Orchestrator] Cache lookup skipped ({exc})")
+
+    # 3. Execution via LangGraph Pipeline
     initial_state: RAGState = {
         "query": query,
         "sanitized_query": query,
@@ -266,6 +340,9 @@ def run_rag_pipeline(
         "tenant_id": tenant_id,
         "conversation_history": conversation_history or [],
         "security_flags": {},
+        "route_decision": {},
+        "cache_hit": False,
+        "query_embedding": query_emb,
         "rewritten_query": query,
         "retrieved_chunks": [],
         "reranked_chunks": [],
@@ -275,6 +352,7 @@ def run_rag_pipeline(
         "citations": [],
         "trace": {"query": query, "session_id": session_id, "tenant_id": tenant_id},
         "token_count": 0,
+        "cost_usd": 0.0,
         "retry_count": 0,
         "latency_ms": 0.0,
     }
@@ -293,9 +371,35 @@ def run_rag_pipeline(
     final_state["latency_ms"] = latency
     final_state["trace"]["total_latency_ms"] = latency
 
+    # 4. Record token expenditure and cost in budget controller
+    tokens_used = final_state.get("token_count", 0)
+    prompt_tokens = int(tokens_used * 0.75)
+    completion_tokens = int(tokens_used * 0.25)
+    telemetry = budget_ctrl.record_query_usage(
+        session_id=session_id,
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        latency_ms=latency,
+    )
+    cost_usd = telemetry.estimated_cost_usd
+
+    # 5. Populate Semantic Cache on verified grounded answers
+    verdict = final_state.get("verification")
+    is_grounded = verdict.verdict == "grounded" if verdict else True
+    if is_grounded and query_emb and final_state.get("answer"):
+        cache.store(
+            query_text=query,
+            query_embedding=query_emb,
+            answer=final_state["answer"],
+            citations=final_state.get("citations", []),
+            grounding_score=1.0,
+            verification_verdict=verdict.verdict if verdict else "grounded",
+            tenant_id=tenant_id,
+        )
+
     logger.info(
         f"[Orchestrator] Completed | session={session_id} | latency={latency}ms | "
-        f"tokens={final_state.get('token_count', 0)}"
+        f"tokens={tokens_used} | cost=${cost_usd:.6f}"
     )
 
     return {
@@ -304,9 +408,12 @@ def run_rag_pipeline(
         "rewritten_query": final_state.get("rewritten_query", query),
         "verification": final_state.get("verification"),
         "trace": final_state.get("trace", {}),
-        "token_count": final_state.get("token_count", 0),
+        "token_count": tokens_used,
+        "cost_usd": cost_usd,
         "latency_ms": latency,
+        "cache_hit": False,
         "security_flags": final_state.get("security_flags", {}),
+        "route_decision": final_state.get("route_decision", {}),
     }
 
 

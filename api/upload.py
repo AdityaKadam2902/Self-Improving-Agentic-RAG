@@ -100,6 +100,10 @@ async def upload_document(
         # 4. Offload embedding generation and vector upsert to worker threadpool
         await run_in_threadpool(embed_and_store, chunks)
 
+        # 5. Invalidate tenant semantic cache so fresh document data is indexed
+        from backend.routing.semantic_cache import get_semantic_cache
+        get_semantic_cache().invalidate_tenant(tenant_id)
+
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:
@@ -154,5 +158,7 @@ async def delete_document(source: str) -> dict:
         raise HTTPException(status_code=404, detail=f"Document '{source}' not found.")
 
     collection.delete(ids=ids_to_delete)
-    logger.info(f"[Upload] Deleted {len(ids_to_delete)} chunks for '{source}'")
+    from backend.routing.semantic_cache import get_semantic_cache
+    get_semantic_cache().clear()
+    logger.info(f"[Upload] Deleted {len(ids_to_delete)} chunks for '{source}' and cleared cache")
     return {"deleted": len(ids_to_delete), "source": source}

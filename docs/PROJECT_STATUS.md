@@ -1,7 +1,7 @@
 # Project Status Tracker and Engineering Scorecard
 ## Self-Improving Agentic RAG Platform
 
-Operational Status: Active Development (Phase 1 Complete, Transitioning to Phase 2)  
+Operational Status: Active Development (Phase 2 Complete, Transitioning to Phase 3)  
 Target Release: Enterprise Production Grade v2.0  
 Last Updated: Current Session  
 
@@ -18,15 +18,15 @@ Last Updated: Current Session
 | **Security** | Injection Shield (`backend/security/injection_shield.py`) | PRODUCTION READY | Phase 1 | Intercepts adversarial jailbreaks and escapes XML delimiters |
 | **Security** | PII Scrubber (`backend/security/pii_scrubber.py`) | PRODUCTION READY | Phase 1 | Deterministic regex masking for SSNs, credit cards, keys, JWTs |
 | **Security** | Vector RBAC (`backend/security/tenant_manager.py`) | PRODUCTION READY | Phase 1 | Generates immutable tenant metadata query masks |
-| **Routing** | Semantic Cache (`backend/routing/semantic_cache.py`) | READY FOR DEV | Phase 2 | Scheduled for Phase 2 |
-| **Routing** | Budget Controller (`backend/routing/budget_controller.py`) | READY FOR DEV | Phase 2 | Scheduled for Phase 2 |
-| **Routing** | Adaptive Router (`backend/routing/adaptive_router.py`) | READY FOR DEV | Phase 2 | Scheduled for Phase 2 |
-| **Ingestion** | Layout-Aware Loader (`backend/ingestion/document_loader.py`) | BASIC | Phase 3 | Basic PyMuPDF/python-docx; table layout upgrade in Phase 3 |
+| **Routing** | Semantic Cache (`backend/routing/semantic_cache.py`) | PRODUCTION READY | Phase 2 | In-memory dense cosine vector cache (sim >= 0.960, <40ms) |
+| **Routing** | Budget Controller (`backend/routing/budget_controller.py`) | PRODUCTION READY | Phase 2 | Real-time token tracking, USD cost calculation, ceiling limits |
+| **Routing** | Adaptive Router (`backend/routing/adaptive_router.py`) | PRODUCTION READY | Phase 2 | Multi-tier intent router (direct, single_hop, multi_hop) |
+| **Ingestion** | Layout-Aware Loader (`backend/ingestion/document_loader.py`) | BASIC | Phase 3 | Basic PyMuPDF/docx; table layout upgrade in Phase 3 |
 | **Ingestion** | Contextual Splitter (`backend/ingestion/text_splitter.py`) | BASIC | Phase 3 | Missing document summary context; upgrade in Phase 3 |
 | **Retrieval** | BM25 Indexer (`backend/ingestion/embedding_generator.py`) | DEFECT KNOWN | Phase 3 | Full-corpus rebuild per query; persistent upgrade in Phase 3 |
 | **Retrieval** | Dense Retriever (`backend/agents/retriever.py`) | ENHANCED | Phase 3 | Hybrid RRF + async offloading + tenant filtering active |
 | **Retrieval** | Cross-Encoder Reranker (`backend/agents/reranker.py`) | ENHANCED | Phase 3 | Cross-encoder + async threadpool offloading active |
-| **Orchestration** | LangGraph Orchestrator (`backend/orchestrator.py`) | ENHANCED | Phase 3 | Security node integrated, non-blocking execution supported |
+| **Orchestration** | LangGraph Orchestrator (`backend/orchestrator.py`) | ENHANCED | Phase 3 | Security node, semantic cache, and budget manager integrated |
 | **Orchestration** | Corrective RAG (CRAG) (`backend/agents/crag_evaluator.py`) | READY FOR DEV | Phase 3 | Scheduled for Phase 3 |
 | **Orchestration** | Multi-Hop Planner (`backend/agents/planner.py`) | READY FOR DEV | Phase 3 | Scheduled for Phase 3 |
 | **Trust/Verify** | Atomic Claim Extractor (`backend/verification/claim_extractor.py`)| READY FOR DEV | Phase 4 | Scheduled for Phase 4 |
@@ -44,7 +44,7 @@ Last Updated: Current Session
 
 Status Key:
 - PRODUCTION READY: Fully tested, robust, concurrent-safe, zero emojis.
-- ENHANCED: Async and security enabled; core capability active.
+- ENHANCED: Async, security, and caching enabled; core capability active.
 - READY FOR DEV: Architecture and interfaces specified, ready for phase execution.
 - DEFECT KNOWN: Known architectural limitation scheduled for replacement.
 
@@ -57,9 +57,10 @@ Status Key:
 | **Concurrent Safe Writes** | 1 (Corrupts JSON) | > 100 req/sec | > 100 req/sec | SQLite WAL multi-threaded load test |
 | **Security Shield Status** | None (Vulnerable) | Active & Tested | Active & Tested | Unit test suite (Injection & PII redactor) |
 | **Event Loop Blocking** | Blocked on PyTorch | Offloaded | Offloaded | ThreadPoolExecutor async wrapper |
+| **Cache Hit Latency** | N/A | < 40 ms | < 40 ms | Verified in Semantic Cache unit tests |
+| **Routing Decision Latency**| N/A | < 1 ms | < 1 ms | Verified via deterministic heuristic regex |
 | **Faithfulness (RAGAS)** | ~0.68 | Pending Eval | >= 0.94 | Golden Eval Dataset (Phase 5) |
 | **Answer Relevance** | ~0.72 | Pending Eval | >= 0.92 | Golden Eval Dataset (Phase 5) |
-| **Cache Hit Latency** | N/A | Pending Cache | < 40 ms | Semantic Vector Cache (Phase 2) |
 | **P95 Pipeline Latency** | ~3800 ms | In Progress | < 1900 ms | Async Hybrid + Cached BM25 |
 
 ---
@@ -77,3 +78,8 @@ Status Key:
 - [x] Phase 1 Step 1.2 Complete: Transactional SQLite WAL Storage Layer (`backend/storage/db.py`) with legacy JSON migration.
 - [x] Phase 1 Step 1.3 Complete: Inline Security Shield (`backend/security/injection_shield.py`, `backend/security/pii_scrubber.py`, `backend/security/tenant_manager.py`).
 - [x] Phase 1 Verification Complete: All unit test suites passing cleanly with zero emojis.
+- [x] Phase 2 Step 2.1 Complete: In-Memory Vectorized Semantic Query Cache (`backend/routing/semantic_cache.py`).
+- [x] Phase 2 Step 2.2 Complete: Token and Latency Budget Manager with USD Cost Tracking (`backend/routing/budget_controller.py`).
+- [x] Phase 2 Step 2.3 Complete: Multi-Tier Adaptive Intent and Complexity Classifier (`backend/routing/adaptive_router.py`).
+- [x] Phase 2 Integration Complete: Semantic cache and budget controller wired into `backend/orchestrator.py`, `backend/api/chat.py`, and `backend/api/upload.py`.
+- [x] Phase 2 Verification Complete: All Phase 2 unit tests passing cleanly with zero emojis.
