@@ -74,7 +74,7 @@ export default function ChatInput({ onSend, loading, disabled, docCount }) {
   };
 
   const placeholder = disabled
-    ? 'Backend offline — please connect to continue'
+    ? 'Backend offline: please connect to continue'
     : docCount === 0
     ? 'Upload a document to begin asking questions'
     : 'Ask a question about your documents...';
@@ -92,7 +92,7 @@ export default function ChatInput({ onSend, loading, disabled, docCount }) {
         <button style={s.sendBtn} onClick={submit} disabled={!canSend}
           onMouseEnter={e => { if (canSend) e.currentTarget.style.background = 'var(--accent-dim)'; }}
           onMouseLeave={e => { if (canSend) e.currentTarget.style.background = 'var(--accent)'; }}>
-          {loading ? <div style={s.spinner} /> : '↑'}
+          {loading ? <div style={s.spinner} /> : 'Send'}
         </button>
       </div>
       <div style={s.disclaimer}>
