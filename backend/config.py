@@ -47,6 +47,12 @@ try:
         # Self-improvement
         feedback_db_path: str = Field(default="./vector_db/feedback.json", env="FEEDBACK_DB_PATH")
 
+        # Ingestion & CRAG (Phase 3)
+        bm25_persist_path: str = Field(default="./vector_db/bm25_index.pkl", env="BM25_PERSIST_PATH")
+        crag_correct_threshold: float = Field(default=0.65, env="CRAG_CORRECT_THRESHOLD")
+        crag_ambiguous_threshold: float = Field(default=0.35, env="CRAG_AMBIGUOUS_THRESHOLD")
+        crag_use_llm: bool = Field(default=False, env="CRAG_USE_LLM")
+
         # API
         api_host: str = Field(default="0.0.0.0", env="API_HOST")
         api_port: int = Field(default=8000, env="API_PORT")
@@ -78,6 +84,10 @@ except ImportError:
         chroma_collection: str = os.getenv("CHROMA_COLLECTION", "rag_documents")
         conversation_history_limit: int = int(os.getenv("CONVERSATION_HISTORY_LIMIT", "5"))
         feedback_db_path: str = os.getenv("FEEDBACK_DB_PATH", "./vector_db/feedback.json")
+        bm25_persist_path: str = os.getenv("BM25_PERSIST_PATH", "./vector_db/bm25_index.pkl")
+        crag_correct_threshold: float = float(os.getenv("CRAG_CORRECT_THRESHOLD", "0.65"))
+        crag_ambiguous_threshold: float = float(os.getenv("CRAG_AMBIGUOUS_THRESHOLD", "0.35"))
+        crag_use_llm: bool = os.getenv("CRAG_USE_LLM", "false").lower() in ("true", "1", "yes")
         api_host: str = os.getenv("API_HOST", "0.0.0.0")
         api_port: int = int(os.getenv("API_PORT", "8000"))
         cors_origins: List[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]

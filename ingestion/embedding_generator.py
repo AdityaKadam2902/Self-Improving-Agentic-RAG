@@ -20,9 +20,19 @@ import os
 from pathlib import Path
 from typing import Optional, Any
 
-from loguru import logger
-from rank_bm25 import BM25Okapi
-from sentence_transformers import SentenceTransformer
+try:
+    from loguru import logger
+except ImportError:
+    import logging
+    logger = logging.getLogger(__name__)
+try:
+    from rank_bm25 import BM25Okapi
+except ImportError:
+    BM25Okapi = None
+try:
+    from sentence_transformers import SentenceTransformer
+except ImportError:
+    SentenceTransformer = None
 
 from backend.config import get_settings
 from backend.ingestion.text_splitter import TextChunk
@@ -261,7 +271,7 @@ def collection_count() -> int:
     return _get_chroma_collection().count()
 
 
-def build_bm25_index(documents: Optional[list[str]] = None) -> BM25Okapi:
+def build_bm25_index(documents: Optional[list[str]] = None) -> Any:
     """
     Build a BM25 index from *documents* or from all stored docs.
 
@@ -275,4 +285,7 @@ def build_bm25_index(documents: Optional[list[str]] = None) -> BM25Okapi:
         _, documents, _ = get_all_documents()
 
     tokenized = [doc.lower().split() for doc in (documents or [])]
-    return BM25Okapi(tokenized if tokenized else [[]])
+    if BM25Okapi is not None:
+        return BM25Okapi(tokenized if tokenized else [[]])
+    from backend.ingestion.cached_bm25 import get_bm25_index
+    return get_bm25_index()

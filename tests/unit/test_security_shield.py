@@ -2,6 +2,12 @@
 Unit tests for the Zero-Trust Security Shield (Injection detection & PII scrubbing).
 """
 
+import sys
+from pathlib import Path
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
 from backend.security.injection_shield import scan_for_injection, sanitize_context_delimiters
 from backend.security.pii_scrubber import scrub_pii
 from backend.security.tenant_manager import (

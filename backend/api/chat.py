@@ -151,8 +151,14 @@ async def _stream_rag(question: str, session_id: str, tenant_id: str = "default"
         yield sse("status", {"stage": "Cross-encoder reranking..."})
         reranked = await async_rerank_chunks(rewritten, chunks)
 
+        # 6.5. Corrective RAG (CRAG) Quality Evaluation Gate
+        yield sse("status", {"stage": "Evaluating chunk quality with CRAG..."})
+        from backend.agents.crag_evaluator import get_crag_evaluator
+        crag_res = await get_crag_evaluator().async_evaluate(rewritten, reranked)
+        active_chunks = crag_res.kept_chunks
+
         # 7. Structured Context Assembly
-        context = build_context(reranked)
+        context = build_context(active_chunks)
 
         # 8. Progressive Answer Streaming
         yield sse("status", {"stage": "Synthesizing answer..."})
@@ -213,6 +219,13 @@ async def _stream_rag(question: str, session_id: str, tenant_id: str = "default"
             "security_flags": {
                 "is_suspicious": injection_res.is_suspicious,
                 "pii_redactions": pii_res.redactions_count,
+            },
+            "crag": {
+                "action": crag_res.action,
+                "confidence": crag_res.confidence,
+                "kept_chunks": len(crag_res.kept_chunks),
+                "discarded_chunks": len(crag_res.discarded_chunks),
+                "noise_stripped": crag_res.noise_stripped_count,
             },
         })
 

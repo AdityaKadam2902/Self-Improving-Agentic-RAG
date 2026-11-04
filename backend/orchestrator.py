@@ -38,6 +38,7 @@ from backend.agents.query_understanding import understand_query, QueryUnderstand
 from backend.agents.query_rewriter import rewrite_query
 from backend.agents.retriever import hybrid_retrieve, RetrievedChunk
 from backend.agents.reranker import rerank_chunks
+from backend.agents.crag_evaluator import get_crag_evaluator
 from backend.agents.context_builder import build_context, BuiltContext
 from backend.agents.answer_generator import generate_answer
 from backend.agents.answer_verifier import verify_answer, VerificationResult
@@ -70,6 +71,7 @@ class RAGState(TypedDict):
     rewritten_query: str
     retrieved_chunks: List[RetrievedChunk]
     reranked_chunks: List[RetrievedChunk]
+    crag_result: Optional[Dict[str, Any]]
     context: Optional[BuiltContext]
     verification: Optional[VerificationResult]
 
@@ -186,6 +188,39 @@ def _node_rerank(state: RAGState) -> RAGState:
     return state
 
 
+def _node_crag_eval(state: RAGState) -> RAGState:
+    t0 = time.perf_counter()
+    evaluator = get_crag_evaluator()
+    effective_query = (
+        state.get("rewritten_query")
+        or state.get("sanitized_query")
+        or state["query"]
+    )
+    crag_res = evaluator.evaluate(effective_query, state.get("reranked_chunks", []))
+
+    state["crag_result"] = {
+        "action": crag_res.action,
+        "confidence": crag_res.confidence,
+        "kept_chunks_count": len(crag_res.kept_chunks),
+        "discarded_chunks_count": len(crag_res.discarded_chunks),
+        "noise_stripped_count": crag_res.noise_stripped_count,
+        "evaluations": [
+            {
+                "chunk_id": e.chunk_id,
+                "confidence_score": e.confidence_score,
+                "status": e.status,
+                "reason": e.reason,
+            }
+            for e in crag_res.evaluations
+        ],
+    }
+    # Pass forward only verified relevant chunks to build_context
+    state["reranked_chunks"] = crag_res.kept_chunks
+    state["trace"]["crag"] = state["crag_result"]
+    state["trace"]["crag_ms"] = round((time.perf_counter() - t0) * 1000, 1)
+    return state
+
+
 def _node_build_context(state: RAGState) -> RAGState:
     context = build_context(state["reranked_chunks"])
     state["context"] = context
@@ -196,6 +231,20 @@ def _node_build_context(state: RAGState) -> RAGState:
 
 def _node_generate(state: RAGState) -> RAGState:
     t0 = time.perf_counter()
+    crag_res = state.get("crag_result") or {}
+
+    # If CRAG determined all retrieved chunks were irrelevant distractors, abort ungrounded generation
+    if crag_res.get("action") == "INCORRECT" and not state.get("reranked_chunks"):
+        state["answer"] = (
+            "I reviewed the uploaded documentation, but found no relevant information to answer "
+            "your request. Please provide relevant documents or refine your query."
+        )
+        state["token_count"] = 0
+        state["trace"]["answer_preview"] = state["answer"][:300]
+        state["trace"]["tokens"] = 0
+        state["trace"]["generate_ms"] = round((time.perf_counter() - t0) * 1000, 1)
+        return state
+
     custom_prompt = get_optimized_prompt()
     effective_query = state.get("sanitized_query") or state["query"]
     answer, tokens = generate_answer(
@@ -254,6 +303,7 @@ def _build_graph() -> StateGraph:
     graph.add_node("rewrite", _node_rewrite)
     graph.add_node("retrieve", _node_retrieve)
     graph.add_node("rerank", _node_rerank)
+    graph.add_node("crag_eval", _node_crag_eval)
     graph.add_node("build_context", _node_build_context)
     graph.add_node("generate", _node_generate)
     graph.add_node("verify", _node_verify)
@@ -264,7 +314,8 @@ def _build_graph() -> StateGraph:
     graph.add_edge("understand", "rewrite")
     graph.add_edge("rewrite", "retrieve")
     graph.add_edge("retrieve", "rerank")
-    graph.add_edge("rerank", "build_context")
+    graph.add_edge("rerank", "crag_eval")
+    graph.add_edge("crag_eval", "build_context")
     graph.add_edge("build_context", "generate")
     graph.add_edge("generate", "verify")
     graph.add_conditional_edges(
@@ -346,6 +397,7 @@ def run_rag_pipeline(
         "rewritten_query": query,
         "retrieved_chunks": [],
         "reranked_chunks": [],
+        "crag_result": None,
         "context": None,
         "verification": None,
         "answer": "",
@@ -414,6 +466,7 @@ def run_rag_pipeline(
         "cache_hit": False,
         "security_flags": final_state.get("security_flags", {}),
         "route_decision": final_state.get("route_decision", {}),
+        "crag_result": final_state.get("crag_result", {}),
     }
 
 

@@ -26,7 +26,7 @@ from backend.utils.async_executor import run_in_threadpool
 
 router = APIRouter(prefix="/api", tags=["documents"])
 
-ALLOWED_EXTENSIONS = {".pdf", ".docx", ".txt"}
+ALLOWED_EXTENSIONS = {".pdf", ".docx", ".doc", ".txt", ".md", ".markdown", ".csv", ".tsv"}
 MAX_FILE_SIZE_MB = 50
 
 
@@ -100,7 +100,12 @@ async def upload_document(
         # 4. Offload embedding generation and vector upsert to worker threadpool
         await run_in_threadpool(embed_and_store, chunks)
 
-        # 5. Invalidate tenant semantic cache so fresh document data is indexed
+        # 5. Incrementally update persistent BM25 inverted index
+        from backend.ingestion.cached_bm25 import get_bm25_index
+        bm25_tuples = [(c.chunk_id, c.content, c.metadata) for c in chunks]
+        await run_in_threadpool(get_bm25_index().add_documents, bm25_tuples, persist=True)
+
+        # 6. Invalidate tenant semantic cache so fresh document data is indexed
         from backend.routing.semantic_cache import get_semantic_cache
         get_semantic_cache().invalidate_tenant(tenant_id)
 
@@ -158,6 +163,8 @@ async def delete_document(source: str) -> dict:
         raise HTTPException(status_code=404, detail=f"Document '{source}' not found.")
 
     collection.delete(ids=ids_to_delete)
+    from backend.ingestion.cached_bm25 import get_bm25_index
+    get_bm25_index().remove_source(source, persist=True)
     from backend.routing.semantic_cache import get_semantic_cache
     get_semantic_cache().clear()
     logger.info(f"[Upload] Deleted {len(ids_to_delete)} chunks for '{source}' and cleared cache")

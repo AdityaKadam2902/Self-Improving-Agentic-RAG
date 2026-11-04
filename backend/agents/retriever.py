@@ -1,17 +1,21 @@
 """
-Hybrid Retrieval Agent.
+Hybrid Retrieval Agent with Persistent Incremental BM25 Inverted Index.
 
-Combines dense vector search (ChromaDB / Qdrant) with sparse BM25 keyword search,
-then merges the ranked results using Reciprocal Rank Fusion (RRF).
+Combines dense vector search (ChromaDB / Qdrant) with high-speed sparse BM25 inverted
+index lookup (<5 ms), then merges the ranked results using Reciprocal Rank Fusion (RRF).
 Supports asynchronous execution via worker threadpool offloading.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
-from loguru import logger
+try:
+    from loguru import logger
+except ImportError:
+    import logging
+    logger = logging.getLogger(__name__)
 
 from backend.config import get_settings
 from backend.utils.async_executor import run_in_threadpool
@@ -19,9 +23,9 @@ from backend.ingestion.embedding_generator import (
     embed_query,
     vector_query,
     get_all_documents,
-    build_bm25_index,
     collection_count,
 )
+from backend.ingestion.cached_bm25 import get_bm25_index
 
 
 @dataclass
@@ -45,7 +49,7 @@ def hybrid_retrieve(
     Perform synchronous hybrid retrieval for *query*.
 
     1. Dense vector search via ChromaDB/Qdrant cosine similarity.
-    2. Sparse BM25 keyword search over all stored documents.
+    2. High-speed sparse BM25 inverted index lookup (<5 ms).
     3. Reciprocal Rank Fusion to merge rankings.
 
     Args:
@@ -71,10 +75,10 @@ def hybrid_retrieve(
     vector_results = vector_query(query_embedding, top_k=min(top_k, total_docs))
 
     dense_chunks: dict[str, RetrievedChunk] = {}
-    ids = vector_results["ids"]
-    docs = vector_results["documents"]
-    metas = vector_results["metadatas"]
-    dists = vector_results["distances"]
+    ids = vector_results.get("ids", [])
+    docs = vector_results.get("documents", [])
+    metas = vector_results.get("metadatas", [])
+    dists = vector_results.get("distances", [])
 
     for rank, (cid, doc, meta, dist) in enumerate(zip(ids, docs, metas, dists)):
         # Apply tenant filter if provided
@@ -87,26 +91,21 @@ def hybrid_retrieve(
             vector_score=1.0 - dist,  # cosine distance -> similarity
         )
 
-    # 2. Sparse BM25 retrieval
-    all_ids, all_docs, all_metas = get_all_documents()
+    # 2. Sparse BM25 retrieval using Persistent Inverted Index
+    bm25_idx = get_bm25_index()
+    # If the in-memory BM25 index is empty but vector collection has docs, seed it
+    if bm25_idx.total_docs == 0 and total_docs > 0:
+        try:
+            all_ids, all_docs, all_metas = get_all_documents()
+            seed_tuples = list(zip(all_ids, all_docs, all_metas))
+            bm25_idx.add_documents(seed_tuples, persist=True)
+        except Exception as e:
+            logger.warning(f"[Retriever] Failed to seed BM25 index: {e}")
 
-    bm25 = build_bm25_index(all_docs)
-    tokenized_query = query.lower().split()
-    bm25_scores = bm25.get_scores(tokenized_query)
-
-    # Build (id, score) pairs sorted by score
-    bm25_ranked = sorted(
-        zip(all_ids, all_docs, all_metas, bm25_scores),
-        key=lambda x: x[3],
-        reverse=True,
-    )[:top_k]
+    bm25_results = bm25_idx.query(query, top_k=top_k, tenant_filter=tenant_filter)
 
     sparse_chunks: dict[str, RetrievedChunk] = {}
-    for rank, (cid, doc, meta, score) in enumerate(bm25_ranked):
-        if score == 0:
-            break
-        if tenant_filter and not _matches_filter(meta, tenant_filter):
-            continue
+    for cid, doc, meta, score in bm25_results:
         if cid in dense_chunks:
             dense_chunks[cid].bm25_score = score
         else:
@@ -120,7 +119,7 @@ def hybrid_retrieve(
     # 3. Reciprocal Rank Fusion
     all_chunks: dict[str, RetrievedChunk] = {**dense_chunks, **sparse_chunks}
     dense_order = list(dense_chunks.keys())
-    sparse_order = [cid for cid, *_ in bm25_ranked if cid in all_chunks]
+    sparse_order = [cid for cid, _, _, _ in bm25_results if cid in all_chunks]
 
     k_rrf = 60  # standard RRF constant
     for cid, chunk in all_chunks.items():

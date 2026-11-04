@@ -3,6 +3,13 @@ Unit tests for the Economic Routing Engine and Semantic Query Cache (Phase 2).
 """
 
 import math
+import sys
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
 from backend.routing.semantic_cache import SemanticQueryCache, _cosine_similarity
 from backend.routing.budget_controller import BudgetController
 from backend.routing.adaptive_router import classify_query_route
