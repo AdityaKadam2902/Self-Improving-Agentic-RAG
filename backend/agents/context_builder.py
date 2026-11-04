@@ -9,7 +9,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from loguru import logger
+try:
+    from loguru import logger
+except ImportError:
+    import logging
+    logger = logging.getLogger(__name__)
 
 from backend.agents.retriever import RetrievedChunk
 

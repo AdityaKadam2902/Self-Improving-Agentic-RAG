@@ -207,11 +207,22 @@ async def _stream_rag(question: str, session_id: str, tenant_id: str = "default"
             )
 
         # Deliver final metadata event
+        final_citations = verification.attributed_citations if verification.attributed_citations else context.citations
         yield sse("done", {
             "answer": full_answer,
-            "citations": context.citations,
+            "citations": final_citations,
             "rewritten_query": rewritten,
             "verification_verdict": verification.verdict,
+            "grounding_score": verification.grounding_score,
+            "verification": {
+                "verdict": verification.verdict,
+                "grounding_score": verification.grounding_score,
+                "total_claims": verification.total_claims,
+                "entailed_claims": verification.entailed_claims,
+                "unverified_claims": verification.unverified_claims,
+                "explanation": verification.explanation,
+                "claim_details": verification.claim_details,
+            },
             "latency_ms": total_latency,
             "cache_hit": False,
             "cost_usd": telemetry.estimated_cost_usd,

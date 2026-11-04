@@ -8,7 +8,11 @@ the query type to guide downstream agents.
 from __future__ import annotations
 
 from langchain_groq import ChatGroq
-from loguru import logger
+try:
+    from loguru import logger
+except ImportError:
+    import logging
+    logger = logging.getLogger(__name__)
 from pydantic import BaseModel, Field
 
 from backend.config import get_settings

@@ -3,7 +3,11 @@ Answer Generator Agent — with streaming support.
 """
 
 from __future__ import annotations
-from loguru import logger
+try:
+    from loguru import logger
+except ImportError:
+    import logging
+    logger = logging.getLogger(__name__)
 from langchain_groq import ChatGroq
 from backend.agents.context_builder import BuiltContext
 from backend.config import get_settings

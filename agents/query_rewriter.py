@@ -8,7 +8,11 @@ from the self-improvement engine and produces a retrieval-optimised query.
 from __future__ import annotations
 
 from langchain_groq import ChatGroq
-from loguru import logger
+try:
+    from loguru import logger
+except ImportError:
+    import logging
+    logger = logging.getLogger(__name__)
 
 from backend.agents.query_understanding import QueryUnderstanding
 from backend.config import get_settings

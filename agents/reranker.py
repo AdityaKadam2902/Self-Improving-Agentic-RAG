@@ -11,8 +11,16 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Optional
 
-from loguru import logger
-from sentence_transformers import CrossEncoder
+try:
+    from loguru import logger
+except ImportError:
+    import logging
+    logger = logging.getLogger(__name__)
+
+try:
+    from sentence_transformers import CrossEncoder
+except ImportError:
+    CrossEncoder = None
 
 from backend.agents.retriever import RetrievedChunk
 from backend.config import get_settings

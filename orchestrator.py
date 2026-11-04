@@ -273,14 +273,17 @@ def _node_verify(state: RAGState) -> dict:
     if result.verdict == "hallucination":
         new_retry += 1
         logger.warning(f"[Orchestrator] Hallucination detected (attempt {new_retry})")
+
+    citations = result.attributed_citations if result.attributed_citations else state.get("citations", [])
     return {
         "verification": result,
+        "citations": citations,
         "retry_count": new_retry,
         "trace": {
             **state["trace"],
             "verification": result.model_dump(),
             "verify_ms": round((time.perf_counter() - t0) * 1000, 1),
-        }
+        },
     }
 
 

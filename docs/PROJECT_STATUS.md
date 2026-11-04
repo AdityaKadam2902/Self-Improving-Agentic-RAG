@@ -1,7 +1,7 @@
 # Project Status Tracker and Engineering Scorecard
 ## Self-Improving Agentic RAG Platform
 
-Operational Status: Active Development (Phase 3 Complete, Transitioning to Phase 4)  
+Operational Status: Active Development (Phase 4 Complete, Transitioning to Phase 5)  
 Target Release: Enterprise Production Grade v2.0  
 Last Updated: Current Session  
 
@@ -29,9 +29,9 @@ Last Updated: Current Session
 | **Orchestration** | Corrective RAG (CRAG) (`backend/agents/crag_evaluator.py`) | PRODUCTION READY | Phase 3 | CORRECT/AMBIGUOUS/INCORRECT gate, noise sentence stripper |
 | **Orchestration** | LangGraph Orchestrator (`backend/orchestrator.py`) | PRODUCTION READY | Phase 3 | Security, routing, cache, CRAG evaluator, and budget wired |
 | **Orchestration** | Multi-Hop Planner (`backend/agents/planner.py`) | READY FOR DEV | Phase 3 | Scheduled for Phase 3 |
-| **Trust/Verify** | Atomic Claim Extractor (`backend/verification/claim_extractor.py`)| READY FOR DEV | Phase 4 | Scheduled for Phase 4 |
-| **Trust/Verify** | NLI Entailment (`backend/verification/entailment_verifier.py`) | COARSE | Phase 4 | Coarse check active; formal NLI upgrade in Phase 4 |
-| **Trust/Verify** | Citation Attribution (`backend/verification/citation_mapper.py`) | BASIC | Phase 4 | Chunk-level citations; token-span upgrade in Phase 4 |
+| **Trust/Verify** | Atomic Claim Extractor (`backend/verification/claim_extractor.py`)| PRODUCTION READY | Phase 4 | Decomposes answers into atomic proposition strings |
+| **Trust/Verify** | NLI Entailment (`backend/verification/entailment_verifier.py`) | PRODUCTION READY | Phase 4 | ENTAILED/CONTRADICTED/UNVERIFIABLE NLI grounding score |
+| **Trust/Verify** | Citation Attribution (`backend/verification/citation_mapper.py`) | PRODUCTION READY | Phase 4 | Precise token-span coordinates, hallucination redactor |
 | **Self-Improvement**| Failure Clusterer (`backend/evolution/failure_clusterer.py`) | READY FOR DEV | Phase 5 | Scheduled for Phase 5 |
 | **Self-Improvement**| Parameter Tuner (`backend/evolution/parameter_tuner.py`) | READY FOR DEV | Phase 5 | Scheduled for Phase 5 |
 | **Self-Improvement**| Regression Gate (`backend/evolution/eval_harness.py`) | READY FOR DEV | Phase 5 | Scheduled for Phase 5 |
@@ -90,3 +90,8 @@ Status Key:
 - [x] Phase 3 Step 4.4 Complete: Corrective RAG (CRAG) Quality Evaluator (`backend/agents/crag_evaluator.py`) with noise stripping and distractor elimination.
 - [x] Phase 3 Integration Complete: CRAG and cached BM25 integrated into orchestrator LangGraph state machine, hybrid retriever, and chat SSE stream.
 - [x] Phase 3 Verification Complete: Full test suite passing cleanly with zero emojis.
+- [x] Phase 4 Step 5.1 Complete: Propositional Claim Decomposer (`backend/verification/claim_extractor.py`) parsing compound propositions and numeric assertions.
+- [x] Phase 4 Step 5.2 Complete: Natural Language Inference (NLI) Entailment Evaluator (`backend/verification/entailment_verifier.py`) calculating claim GroundingScore.
+- [x] Phase 4 Step 5.3 Complete: Token-Span Citation Attribution and Hallucination Redactor (`backend/verification/citation_mapper.py`).
+- [x] Phase 4 Integration Complete: Atomic claim NLI verification wired into `backend/agents/answer_verifier.py`, `backend/orchestrator.py`, and `backend/api/chat.py`.
+- [x] Phase 4 Verification Complete: All 5 regression test suites passing 100% cleanly with zero emojis.
