@@ -366,7 +366,7 @@ Access the client application at `http://localhost:3000`.
 | Environment Variable | Default Value | Description |
 |---|---|---|
 | `GROQ_API_KEY` | *(Required)* | Groq Cloud API authentication key |
-| `GROQ_MODEL` | `llama-3.3-70b-versatile` | LLM model identifier for generation |
+| `GROQ_MODEL` | `openai/gpt-oss-120b` | LLM model identifier for generation |
 | `EMBEDDING_MODEL` | `all-MiniLM-L6-v2` | Sentence-Transformers embedding model |
 | `RERANKER_MODEL` | `cross-encoder/ms-marco-MiniLM-L-6-v2` | Neural cross-encoder reranking model |
 | `TOP_K_RETRIEVAL` | `10` | Candidate chunk count retrieved via hybrid RRF |

@@ -254,6 +254,22 @@ async def get_feedback_records(limit: int = 100, incorrect_only: bool = False) -
     return await run_in_threadpool(_get_feedback_records_sync, limit, incorrect_only)
 
 
+def _update_feedback_failure_category_sync(record_id: str, failure_category: str) -> None:
+    conn = _get_connection()
+    try:
+        with conn:
+            conn.execute(
+                "UPDATE feedback_ledger SET failure_category = ? WHERE id = ?;",
+                (failure_category, record_id)
+            )
+    finally:
+        conn.close()
+
+
+async def update_feedback_failure_category(record_id: str, failure_category: str) -> None:
+    await run_in_threadpool(_update_feedback_failure_category_sync, record_id, failure_category)
+
+
 # ---------------------------------------------------------------------------
 # Security Audit Operations
 # ---------------------------------------------------------------------------

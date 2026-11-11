@@ -18,7 +18,7 @@ from loguru import logger
 from langchain_groq import ChatGroq
 
 from backend.config import get_settings
-from backend.improvement.feedback_collector import get_incorrect_records, _load_db, _save_db
+from backend.improvement.feedback_collector import get_incorrect_records
 
 
 # ── Path for optimized artifacts ─────────────────────────────────────────────

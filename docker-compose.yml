@@ -14,7 +14,7 @@ services:
       - FEEDBACK_DB_PATH=/app/vector_db/feedback.db
       - BM25_PERSIST_PATH=/app/vector_db/bm25_index.pkl
       - GROQ_API_KEY=${GROQ_API_KEY:-}
-      - GROQ_MODEL=${GROQ_MODEL:-llama-3.3-70b-versatile}
+      - GROQ_MODEL=${GROQ_MODEL:-openai/gpt-oss-120b}
       - EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
       - RERANKER_MODEL=cross-encoder/ms-marco-MiniLM-L-6-v2
     volumes:

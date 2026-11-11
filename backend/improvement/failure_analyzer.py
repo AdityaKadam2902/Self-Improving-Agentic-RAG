@@ -16,7 +16,12 @@ from loguru import logger
 from langchain_groq import ChatGroq
 
 from backend.config import get_settings
-from backend.improvement.feedback_collector import get_incorrect_records, _load_db, _save_db
+from backend.improvement.feedback_collector import (
+    get_incorrect_records,
+    update_feedback_failure_category,
+    _load_db,
+    _save_db,
+)
 
 
 _SYSTEM_PROMPT = """\
@@ -87,19 +92,19 @@ def run_batch_analysis() -> dict[str, int]:
     Returns:
         Dict with counts per failure_type.
     """
-    db = _load_db()
+    incorrect_records = get_incorrect_records(limit=100)
     counts: dict[str, int] = {}
     updated = False
 
-    for record in db:
-        if not record.get("is_correct", True) and record.get("failure_type") is None:
+    for record in incorrect_records:
+        if record.get("failure_type") is None:
             failure_type = analyze_failure(record)
             record["failure_type"] = failure_type
+            update_feedback_failure_category(record["id"], failure_type)
             counts[failure_type] = counts.get(failure_type, 0) + 1
             updated = True
 
     if updated:
-        _save_db(db)
         logger.info(f"[FailureAnalyzer] Batch analysis complete: {counts}")
 
     return counts

@@ -196,13 +196,20 @@ class RecursiveTextSplitterFallback:
 def _get_splitter(chunk_size: int, chunk_overlap: int):
     try:
         from langchain_text_splitters import RecursiveCharacterTextSplitter
-        return RecursiveCharacterTextSplitter.from_tiktoken_encoder(
-            model_name="gpt-3.5-turbo",
-            chunk_size=chunk_size,
-            chunk_overlap=chunk_overlap,
-            separators=["\n\n", "\n", ". ", " ", ""],
-        )
-    except ImportError:
+        try:
+            return RecursiveCharacterTextSplitter.from_tiktoken_encoder(
+                model_name="gpt-3.5-turbo",
+                chunk_size=chunk_size,
+                chunk_overlap=chunk_overlap,
+                separators=["\n\n", "\n", ". ", " ", ""],
+            )
+        except Exception:
+            return RecursiveCharacterTextSplitter(
+                chunk_size=chunk_size,
+                chunk_overlap=chunk_overlap,
+                separators=["\n\n", "\n", ". ", " ", ""],
+            )
+    except Exception:
         return RecursiveTextSplitterFallback(
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,

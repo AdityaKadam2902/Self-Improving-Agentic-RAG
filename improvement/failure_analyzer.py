@@ -16,7 +16,12 @@ from loguru import logger
 from langchain_groq import ChatGroq
 
 from backend.config import get_settings
-from backend.improvement.feedback_collector import get_incorrect_records, _load_db, _save_db
+from backend.improvement.feedback_collector import (
+    get_incorrect_records,
+    update_feedback_failure_category,
+    _load_db,
+    _save_db,
+)
 
 
 _SYSTEM_PROMPT = """\
@@ -55,25 +60,32 @@ def analyze_failure(record: dict) -> str:
         max_tokens=256,
     )
 
-    chunks_text = "\n".join(
-        f"  [{c.get('reference', '?')}] {c.get('source', '')} p{c.get('page', '?')}"
-        for c in record.get("context_chunks", [])
+    context_text = "\n---\n".join(
+        c.get("content", "") for c in record.get("context_chunks", [])
     )
 
-    user_msg = (
-        f"Question: {record['question']}\n\n"
-        f"Retrieved context sources:\n{chunks_text or 'None'}\n\n"
-        f"Generated answer (marked incorrect):\n{record['answer']}"
-    )
+    user_content = f"""\
+Question: {record.get('question', '')}
 
-    messages = [("system", _SYSTEM_PROMPT), ("human", user_msg)]
+Retrieved Context:
+{context_text if context_text else '[No context retrieved]'}
+
+Generated Answer: {record.get('answer', '')}
+
+Classify the failure type.
+"""
+
+    messages = [
+        ("system", _SYSTEM_PROMPT),
+        ("human", user_content),
+    ]
 
     try:
         response = llm.invoke(messages)
         raw = re.sub(r"```(?:json)?", "", response.content.strip()).strip().strip("`")
         data = json.loads(raw)
         failure_type = data.get("failure_type", "unknown")
-        logger.info(f"[FailureAnalyzer] id={record['id']} → {failure_type} ({data.get('confidence', '?')})")
+        logger.info(f"[FailureAnalyzer] id={record['id']} -> {failure_type} ({data.get('confidence', '?')})")
         return failure_type
     except Exception as exc:
         logger.warning(f"[FailureAnalyzer] Analysis failed ({exc})")
@@ -87,19 +99,19 @@ def run_batch_analysis() -> dict[str, int]:
     Returns:
         Dict with counts per failure_type.
     """
-    db = _load_db()
+    incorrect_records = get_incorrect_records(limit=100)
     counts: dict[str, int] = {}
     updated = False
 
-    for record in db:
-        if not record.get("is_correct", True) and record.get("failure_type") is None:
+    for record in incorrect_records:
+        if record.get("failure_type") is None:
             failure_type = analyze_failure(record)
             record["failure_type"] = failure_type
+            update_feedback_failure_category(record["id"], failure_type)
             counts[failure_type] = counts.get(failure_type, 0) + 1
             updated = True
 
     if updated:
-        _save_db(db)
         logger.info(f"[FailureAnalyzer] Batch analysis complete: {counts}")
 
     return counts

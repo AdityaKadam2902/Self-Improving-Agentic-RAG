@@ -18,7 +18,7 @@ try:
     class Settings(BaseSettings):
         # LLM
         groq_api_key: str = Field(default="", env="GROQ_API_KEY")
-        groq_model: str = Field(default="llama-3.3-70b-versatile", env="GROQ_MODEL")
+        groq_model: str = Field(default="openai/gpt-oss-120b", env="GROQ_MODEL")
 
         # Embeddings & Reranker
         embedding_model: str = Field(
@@ -72,7 +72,7 @@ except ImportError:
 
     class Settings(BaseModel):
         groq_api_key: str = os.getenv("GROQ_API_KEY", "")
-        groq_model: str = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+        groq_model: str = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
         embedding_model: str = os.getenv("EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
         reranker_model: str = os.getenv("RERANKER_MODEL", "cross-encoder/ms-marco-MiniLM-L-6-v2")
         chunk_size: int = int(os.getenv("CHUNK_SIZE", "800"))

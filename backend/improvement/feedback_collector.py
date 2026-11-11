@@ -18,6 +18,7 @@ from backend.config import get_settings
 from backend.storage.db import (
     _insert_feedback_sync,
     _get_feedback_records_sync,
+    _update_feedback_failure_category_sync,
     init_database_sync,
 )
 
@@ -128,3 +129,22 @@ def get_all_records(limit: int = 200) -> list[dict]:
             "failure_type": r.get("failure_category"),
         })
     return formatted
+
+
+def update_feedback_failure_category(record_id: str, failure_type: str) -> None:
+    """Update the failure category of a feedback record in SQLite."""
+    _update_feedback_failure_category_sync(record_id, failure_type)
+
+
+def _load_db() -> list[dict]:
+    """Compatibility helper returning all records from SQLite WAL."""
+    return get_all_records()
+
+
+def _save_db(records: list[dict]) -> None:
+    """Compatibility helper persisting failure types back to SQLite WAL."""
+    for r in records:
+        rid = r.get("id")
+        ft = r.get("failure_type") or r.get("failure_category")
+        if rid and ft:
+            _update_feedback_failure_category_sync(rid, ft)
