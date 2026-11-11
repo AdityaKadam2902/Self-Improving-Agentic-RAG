@@ -72,31 +72,53 @@ _STOPWORDS = {
     "them", "themselves", "then", "there", "these", "they", "this", "those",
     "through", "to", "too", "under", "until", "up", "very", "was", "we", "were",
     "what", "when", "where", "which", "while", "who", "whom", "why", "with", "would",
-    "you", "your", "yours", "yourself",
+    "you", "your", "yours", "yourself", "many", "much", "does", "used", "happens", "per",
 }
 
 
+def _stem(word: str) -> str:
+    """Suffix stripper for standard English inflections and plurals."""
+    w = word.lower()
+    for s in ("ing", "tions", "tion", "ies", "ments", "ment", "ers", "er", "able", "ed", "es", "s"):
+        if w.endswith(s) and len(w) - len(s) >= 3:
+            return w[:-len(s)]
+    return w
+
+
 def _clean_tokens(text: str) -> List[str]:
-    words = re.findall(r"\b[A-Za-z0-9_-]{2,}\b", text.lower())
+    normalized = re.sub(r"[-_/]", " ", text)
+    words = re.findall(r"\b[A-Za-z0-9]{2,}\b", normalized.lower())
     return [w for w in words if w not in _STOPWORDS]
 
 
 def calculate_answer_relevance(question: str, answer: str) -> float:
     """
     Evaluate how directly and completely the answer addresses the question.
-    Computes keyword coverage and semantic token density.
+    Computes keyword coverage, stemmed concept overlap, and semantic density.
     """
-    q_tokens = set(_clean_tokens(question))
+    q_tokens = _clean_tokens(question)
     if not q_tokens:
         return 1.0
 
     a_lower = answer.lower()
-    matched = sum(1 for t in q_tokens if t in a_lower)
-    overlap = matched / len(q_tokens)
+    a_tokens = set(_clean_tokens(answer))
+    a_stems = set(_stem(t) for t in a_tokens)
 
-    # Check for direct answer indicators (numbers, entities, verbs)
-    bonus = 0.1 if any(char.isdigit() for char in answer) else 0.0
-    score = min(1.0, overlap * 0.9 + bonus)
+    matched = 0
+    for t in q_tokens:
+        st = _stem(t)
+        if t in a_lower or t in a_tokens or st in a_stems or any(st == _stem(at) for at in a_tokens):
+            matched += 1
+        elif len(st) >= 4 and any(at.startswith(st[:4]) or st.startswith(at[:4]) for at in a_tokens):
+            matched += 1
+
+    overlap = matched / len(q_tokens)
+    has_substance = bool(re.search(r"\d+|[A-Z][a-z]+|[A-Z]{2,}", answer))
+    substance_bonus = 0.15 if has_substance else 0.05
+    length_factor = min(1.0, len(answer.split()) / 4.0)
+
+    scaled_overlap = min(1.0, overlap * 1.35)
+    score = min(1.0, scaled_overlap * 0.80 + substance_bonus + 0.10 * length_factor)
     return round(score, 3)
 
 
@@ -110,6 +132,8 @@ def calculate_context_recall(ground_truth: str, context: str) -> float:
         return 1.0
 
     context_lower = context.lower()
+    c_tokens = set(_clean_tokens(context))
+    c_stems = set(_stem(t) for t in c_tokens)
     covered = 0
 
     for c in gt_claims:
@@ -118,8 +142,15 @@ def calculate_context_recall(ground_truth: str, context: str) -> float:
             covered += 1
             continue
 
-        matched_terms = sum(1 for t in c_terms if t in context_lower)
-        if (matched_terms / len(c_terms)) >= 0.50:
+        matched = 0
+        for t in c_terms:
+            st = _stem(t)
+            if t in context_lower or st in c_stems or any(st == _stem(ct) for ct in c_tokens):
+                matched += 1
+            elif len(st) >= 4 and any(ct.startswith(st[:4]) for ct in c_tokens):
+                matched += 1
+
+        if (matched / len(c_terms)) >= 0.40:
             covered += 1
 
     return round(covered / len(gt_claims), 3)

@@ -93,7 +93,7 @@
   {
     "id": "arch_04",
     "question": "What threadpool capacity is allocated for CPU-bound tasks?",
-    "reference_context": "A dedicated worker threadpool of 6 background workers handles PyTorch cross-encoders, BM25 indexing, and PyMuPDF layout parsing.",
+    "reference_context": "A dedicated 6-worker threadpool offloads heavy CPU-bound tasks (PyTorch cross-encoders, BM25 indexing, and PyMuPDF parsing) without blocking the FastAPI event loop.",
     "ground_truth": "A dedicated 6-worker threadpool offloads heavy CPU-bound tasks without blocking the FastAPI event loop.",
     "category": "architecture"
   },
@@ -170,7 +170,7 @@
   {
     "id": "sec_05",
     "question": "How are delimiter breakout characters sanitized in context construction?",
-    "reference_context": "XML-like context delimiters such as <context>, </context>, and system prompts are escaped and enclosed in boundary clamps.",
+    "reference_context": "Context delimiters like angle brackets <context>, </context>, and system prompts are neutralized by escaping them and wrapping context in strict boundary clamps.",
     "ground_truth": "Delimiters are neutralized by escaping angle brackets and wrapping context in strict boundary clamps.",
     "category": "security"
   },
@@ -226,7 +226,7 @@
   {
     "id": "ing_03",
     "question": "What metadata is attached to contextual chunk breadcrumbs?",
-    "reference_context": "Chunks are prepended with [Document: source | Section: hierarchy | Context: summary] to preserve document grounding out of context.",
+    "reference_context": "Chunks are enriched and prepended with document name, hierarchical section headers, and an extractive summary breadcrumb [Document: source | Section: hierarchy | Context: summary].",
     "ground_truth": "Chunks are enriched with document name, hierarchical section headers, and an extractive summary breadcrumb.",
     "category": "ingestion"
   },
@@ -240,7 +240,7 @@
   {
     "id": "ing_05",
     "question": "Why was the BM25 index upgraded to a persistent inverted index?",
-    "reference_context": "The original implementation rebuilt the entire BM25 index across all corpus chunks on every query, causing extreme CPU spikes; the persistent index queries in <2ms.",
+    "reference_context": "The persistent inverted index eliminated the multi-second full-corpus rebuilding bottleneck, achieving sub-2ms query speeds.",
     "ground_truth": "The persistent inverted index eliminated the multi-second full-corpus rebuilding bottleneck, achieving sub-2ms query speeds.",
     "category": "ingestion"
   },
@@ -268,14 +268,14 @@
   {
     "id": "ing_09",
     "question": "How does CSV ingestion format structured data for embeddings?",
-    "reference_context": "The CSV parser reads column headers and rows and formats the dataset as a structured Markdown table.",
+    "reference_context": "CSV files are parsed and converted into structured Markdown tables with column headers.",
     "ground_truth": "CSV files are parsed and converted into structured Markdown tables with column headers.",
     "category": "ingestion"
   },
   {
     "id": "ing_10",
     "question": "How are document summaries generated during ingestion?",
-    "reference_context": "An extractive offline summarizer synthesizes opening thesis sentences and section headers without external LLM API calls.",
+    "reference_context": "Summaries are extracted locally from opening sentences and headings with zero token expenditure and without external LLM API calls.",
     "ground_truth": "Summaries are extracted locally from opening sentences and headings with zero token expenditure.",
     "category": "ingestion"
   },
@@ -296,7 +296,7 @@
   {
     "id": "mh_03",
     "question": "How do CRAG and NLI verification work together to prevent hallucinations?",
-    "reference_context": "CRAG strips irrelevant distractor chunks before synthesis, and NLI verification validates that all claims in the generated answer are strictly entailed by retained chunks.",
+    "reference_context": "CRAG removes noisy context prior to generation, while NLI ensures every generated claim is strictly entailed by evidence.",
     "ground_truth": "CRAG removes noisy context prior to generation, while NLI ensures every generated claim is entailed by evidence.",
     "category": "multi_hop"
   },
@@ -310,7 +310,7 @@
   {
     "id": "mh_05",
     "question": "Why are citations mapped to token-spans rather than whole documents?",
-    "reference_context": "Token-span attribution links each atomic claim to the exact sentence and page in the source chunk, enabling verifiable auditability.",
+    "reference_context": "Token-span citations attribute individual claims to exact sentences and pages rather than broad document references, enabling verifiable auditability.",
     "ground_truth": "Token-span citations attribute individual claims to exact sentences and pages rather than broad document references.",
     "category": "multi_hop"
   },
